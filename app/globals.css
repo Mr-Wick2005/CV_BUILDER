@@ -1,0 +1,201 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+    --card: 222 40% 11%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 40% 11%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 199 89% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 30% 18%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 222 30% 16%;
+    --muted-foreground: 215 25% 65%;
+    --accent: 199 89% 52%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 222 30% 20%;
+    --input: 222 30% 20%;
+    --ring: 199 89% 52%;
+    --chart-1: 199 89% 52%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --radius: 0.75rem;
+  }
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+    --card: 222 40% 11%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 40% 11%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 199 89% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 30% 18%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 222 30% 16%;
+    --muted-foreground: 215 25% 65%;
+    --accent: 199 89% 52%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 222 30% 20%;
+    --input: 222 30% 20%;
+    --ring: 199 89% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* A4 resume sheet */
+.resume-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  max-height: 297mm;
+  background: #ffffff;
+  color: #1a1a1a;
+  padding: 14mm 16mm;
+  box-sizing: border-box;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 10pt;
+  line-height: 1.38;
+  overflow: hidden;
+}
+
+.resume-sheet h1 {
+  font-size: 22pt;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.resume-sheet h2 {
+  font-size: 10.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1.5px solid #1a1a1a;
+  padding-bottom: 2px;
+  margin-bottom: 4px;
+  margin-top: 10px;
+}
+
+.resume-sheet .resume-contact {
+  font-family: 'Arial', sans-serif;
+  font-size: 8.5pt;
+}
+
+.resume-sheet .resume-summary {
+  font-style: italic;
+  font-size: 9.5pt;
+}
+
+.resume-sheet .resume-entry-title {
+  font-weight: 700;
+  font-size: 10pt;
+}
+
+.resume-sheet .resume-dates {
+  font-family: 'Arial', sans-serif;
+  font-size: 8.5pt;
+  font-style: italic;
+}
+
+.resume-sheet ul {
+  margin: 2px 0 4px 0;
+  padding-left: 14px;
+}
+
+.resume-sheet li {
+  margin-bottom: 1px;
+}
+
+.resume-sheet .resume-skill-line {
+  font-family: 'Arial', sans-serif;
+  font-size: 9pt;
+  margin-bottom: 1px;
+}
+
+.resume-sheet .resume-skill-cat {
+  font-weight: 700;
+}
+
+/* Custom scrollbar */
+.app-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.app-scroll::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+.app-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+.app-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Print rules — only the resume sheet prints, UI is hidden */
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    zoom: 1 !important;
+  }
+
+  .resume-sheet {
+    width: 210mm;
+    min-height: 297mm;
+    max-height: 297mm;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    transform: none !important;
+    page-break-after: avoid;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
