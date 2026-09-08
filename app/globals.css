@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&family=Outfit:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -23,33 +25,7 @@
     --border: 222 30% 20%;
     --input: 222 30% 20%;
     --ring: 199 89% 52%;
-    --chart-1: 199 89% 52%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
     --radius: 0.75rem;
-  }
-  .dark {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 96%;
-    --card: 222 40% 11%;
-    --card-foreground: 210 40% 96%;
-    --popover: 222 40% 11%;
-    --popover-foreground: 210 40% 96%;
-    --primary: 199 89% 52%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 222 30% 18%;
-    --secondary-foreground: 210 40% 96%;
-    --muted: 222 30% 16%;
-    --muted-foreground: 215 25% 65%;
-    --accent: 199 89% 52%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 222 30% 20%;
-    --input: 222 30% 20%;
-    --ring: 199 89% 52%;
   }
 }
 
@@ -63,85 +39,271 @@
   }
 }
 
-/* A4 resume sheet */
+/* Base A4 resume sheet - matching exact standard dimensions */
 .resume-sheet {
   width: 210mm;
   min-height: 297mm;
-  max-height: 297mm;
   background: #ffffff;
-  color: #1a1a1a;
-  padding: 14mm 16mm;
+  color: #0f172a;
+  padding: 10mm 15mm 10mm 15mm;
   box-sizing: border-box;
-  font-family: 'Georgia', 'Times New Roman', serif;
-  font-size: 10pt;
-  line-height: 1.38;
-  overflow: hidden;
+  font-size: 8.5pt;
+  line-height: 1.3;
+  position: relative;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45), 0 0 1px rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.resume-sheet h1 {
-  font-size: 22pt;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+/* Header */
+.resume-header {
+  text-align: center;
+  margin-bottom: 5px;
+  width: 100%;
+}
+
+.resume-name {
+  font-size: 20pt;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   margin: 0;
+  line-height: 1.15;
+  color: #0f172a;
 }
 
-.resume-sheet h2 {
-  font-size: 10.5pt;
+.resume-contact-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 5px 8px;
+  margin-top: 3px;
+  font-size: 8.3pt;
+  color: #334155;
+}
+
+.resume-contact-pipe {
+  color: #94a3b8;
+  font-weight: 300;
+  font-size: 8pt;
+  user-select: none;
+}
+
+.resume-contact-item {
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.resume-contact-link {
+  color: #0f172a;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.resume-contact-link:hover {
+  text-decoration: underline;
+}
+
+.resume-social-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #0f172a;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.resume-social-link:hover {
+  text-decoration: underline;
+}
+
+/* General Sections */
+.resume-section {
+  margin-top: 4.5px;
+  width: 100%;
+}
+
+.resume-section-title {
+  font-size: 9.6pt;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  border-bottom: 1.5px solid #1a1a1a;
-  padding-bottom: 2px;
-  margin-bottom: 4px;
-  margin-top: 10px;
+  letter-spacing: 0.05em;
+  border-bottom: 1.2px solid #0f172a;
+  padding-bottom: 1px;
+  margin-top: 0;
+  margin-bottom: 2.5px;
+  color: #0f172a;
 }
 
-.resume-sheet .resume-contact {
-  font-family: 'Arial', sans-serif;
+/* Template 2: Modern Tech Minimalist */
+.template-modern-tech .resume-header {
+  text-align: left;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 5px;
+  margin-bottom: 6px;
+}
+.template-modern-tech .resume-contact-bar {
+  justify-content: flex-start;
+}
+
+/* Template 3: Executive Slate */
+.template-executive-slate .resume-header {
+  background: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border-left: 4px solid #0f172a;
+  text-align: left;
+  margin-bottom: 5px;
+}
+.template-executive-slate .resume-contact-bar {
+  justify-content: flex-start;
+}
+
+/* Template 4: Compact Grid */
+.template-compact-grid {
+  padding: 8mm 12mm 8mm 12mm;
+  font-size: 8.1pt;
+  line-height: 1.23;
+}
+.template-compact-grid .resume-section-title {
+  font-size: 8.8pt;
+  padding-bottom: 1px;
+  margin-bottom: 2px;
+}
+.template-compact-grid .resume-entry {
+  margin-bottom: 1.5px;
+}
+
+/* Summary */
+.resume-summary {
   font-size: 8.5pt;
+  line-height: 1.32;
+  margin: 0;
+  color: #1e293b;
 }
 
-.resume-sheet .resume-summary {
-  font-style: italic;
-  font-size: 9.5pt;
+/* Entries */
+.resume-entry {
+  margin-bottom: 2.5px;
 }
 
-.resume-sheet .resume-entry-title {
-  font-weight: 700;
-  font-size: 10pt;
-}
-
-.resume-sheet .resume-dates {
-  font-family: 'Arial', sans-serif;
-  font-size: 8.5pt;
-  font-style: italic;
-}
-
-.resume-sheet ul {
-  margin: 2px 0 4px 0;
+.resume-bullets {
+  margin: 0;
   padding-left: 14px;
+  list-style-type: disc;
 }
 
-.resume-sheet li {
+.resume-bullets li {
+  font-size: 8.5pt;
+  line-height: 1.3;
+  margin-bottom: 1px;
+  color: #1e293b;
+}
+
+.resume-bullets li::marker {
+  font-size: 7.5pt;
+  color: #475569;
+}
+
+.resume-edu-dates {
+  font-size: 8.8pt;
+  color: #111111;
+  white-space: nowrap;
+}
+
+.resume-edu-inst {
+  font-size: 8.8pt;
+  color: #111111;
+  margin-top: 0.5px;
+}
+
+/* Skills 2-Column Grid */
+.resume-skills-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 1px 14px;
+}
+
+.resume-skill-line {
+  font-size: 8.6pt;
+  line-height: 1.32;
+  display: flex;
+  align-items: baseline;
   margin-bottom: 1px;
 }
 
-.resume-sheet .resume-skill-line {
-  font-family: 'Arial', sans-serif;
-  font-size: 9pt;
-  margin-bottom: 1px;
+.resume-bullet {
+  margin-right: 5px;
+  font-size: 8.5pt;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
-.resume-sheet .resume-skill-cat {
+.resume-skill-cat {
+  font-weight: 700;
+  color: #111111;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.resume-skill-vals {
+  color: #111111;
+}
+
+/* Entries (Positions, Projects, Certifications) */
+.resume-entry {
+  margin-bottom: 3.5px;
+}
+
+.resume-entry-header {
+  font-size: 8.8pt;
+  font-weight: 700;
+  color: #111111;
+  margin-bottom: 0.5px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.resume-underlined {
+  text-decoration: underline;
   font-weight: 700;
 }
 
-/* Custom scrollbar */
+.resume-pipe {
+  font-weight: 700;
+  margin: 0 1px;
+}
+
+.resume-bullets {
+  margin: 0;
+  padding-left: 14px;
+  list-style-type: disc;
+}
+
+.resume-bullets li {
+  font-size: 8.6pt;
+  line-height: 1.32;
+  margin-bottom: 1.5px;
+  color: #111111;
+  text-align: left;
+}
+
+.resume-bullets li::marker {
+  font-size: 8pt;
+  color: #111111;
+}
+
+/* Custom scrollbars */
 .app-scroll::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 .app-scroll::-webkit-scrollbar-track {
-  background: hsl(var(--background));
+  background: transparent;
 }
 .app-scroll::-webkit-scrollbar-thumb {
   background: hsl(var(--border));
@@ -151,7 +313,7 @@
   background: hsl(var(--muted-foreground));
 }
 
-/* Print rules — only the resume sheet prints, UI is hidden */
+/* Print rules — strictly clean A4 sheet output */
 @media print {
   @page {
     size: A4;
@@ -162,6 +324,8 @@
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   body * {
@@ -177,7 +341,7 @@
     position: absolute;
     left: 0;
     top: 0;
-    width: 100%;
+    width: 210mm !important;
     margin: 0 !important;
     padding: 0 !important;
     transform: none !important;
@@ -185,14 +349,17 @@
   }
 
   .resume-sheet {
-    width: 210mm;
-    min-height: 297mm;
-    max-height: 297mm;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
     margin: 0 !important;
+    padding: 10mm 15mm 10mm 15mm !important;
     box-shadow: none !important;
     border: none !important;
     transform: none !important;
-    page-break-after: avoid;
+    page-break-inside: avoid !important;
+    page-break-after: avoid !important;
+    overflow: hidden !important;
   }
 
   .no-print {
