@@ -234,14 +234,14 @@ export function ResumeEditor({
 
   // Skill category handlers
   const addSkillCategory = () => {
-    const newCat: SkillCategory = { category: 'Tools & Platforms', skills: ['Git', 'GitHub', 'VS Code', 'Docker'] };
+    const newCat: SkillCategory = { category: 'Tools & Platforms', skills: ['Git', 'GitHub', 'VS Code', 'Docker'], column: 1 };
     onChange({ ...resume, skills: [...resume.skills, newCat] });
   };
 
-  const updateSkillCategory = (index: number, category: string, skillsString: string) => {
+  const updateSkillCategory = (index: number, category: string, skillsString: string, column?: 1 | 2) => {
     const updated = [...resume.skills];
     const skillsArray = skillsString.split(',').map((s) => s.trim()).filter(Boolean);
-    updated[index] = { category, skills: skillsArray };
+    updated[index] = { category, skills: skillsArray, column: column ?? updated[index]?.column };
     onChange({ ...resume, skills: updated });
   };
 
@@ -616,22 +616,54 @@ export function ResumeEditor({
                 <div className="flex items-center justify-between gap-2">
                   <Input
                     value={cat.category}
-                    onChange={(e) => updateSkillCategory(i, e.target.value, cat.skills.join(', '))}
+                    onChange={(e) => updateSkillCategory(i, e.target.value, cat.skills.join(', '), cat.column)}
                     placeholder="Category (e.g. Languages, Frontend, Backend)"
                     className="text-xs h-7 font-semibold"
                   />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeSkillCategory(i)}
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center rounded-md border border-border bg-background p-0.5 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateSkillCategory(i, cat.category, cat.skills.join(', '), cat.column === 1 ? undefined : 1);
+                        }}
+                        className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${
+                          cat.column === 1
+                            ? 'bg-primary text-primary-foreground font-semibold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        title="Assign to Column 1 (in two-column layout)"
+                      >
+                        Col 1
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateSkillCategory(i, cat.category, cat.skills.join(', '), cat.column === 2 ? undefined : 2);
+                        }}
+                        className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${
+                          cat.column === 2
+                            ? 'bg-primary text-primary-foreground font-semibold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        title="Assign to Column 2 (in two-column layout)"
+                      >
+                        Col 2
+                      </button>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeSkillCategory(i)}
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
                 <Input
                   value={cat.skills.join(', ')}
-                  onChange={(e) => updateSkillCategory(i, cat.category, e.target.value)}
+                  onChange={(e) => updateSkillCategory(i, cat.category, e.target.value, cat.column)}
                   placeholder="Comma separated skills (e.g. JavaScript, Python, React, SQL)"
                   className="text-xs h-7"
                 />

@@ -38,14 +38,18 @@ import {
   deleteResume,
   getUserApiKey,
 } from '@/lib/storage';
+import { getOriginalDocument } from '@/lib/original-doc-storage';
 import { SAMPLE_PROFILES, DEFAULT_SECTION_ORDER } from '@/lib/sample-profiles';
 import { tailorResume } from '@/lib/tailor';
-import type { ResumeData, TailorResponse } from '@/lib/types';
+import type { ResumeData, TailorResponse, OriginalDocument } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Home() {
   const [resumes, setResumes] = useState<ResumeData[]>([]);
   const [activeResume, setActiveResume] = useState<ResumeData>(SAMPLE_PROFILES['full-stack'].data);
+  const [activeOriginalDoc, setActiveOriginalDoc] = useState<OriginalDocument | null>(null);
+  const [activeOriginalBlob, setActiveOriginalBlob] = useState<Blob | null>(null);
+  const [previewMode, setPreviewMode] = useState<'original' | 'editable'>('editable');
   const [role, setRole] = useState('Full Stack Developer');
   const [jobDescription, setJobDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -58,6 +62,26 @@ export default function Home() {
 
   const { toast } = useToast();
 
+  // Load original document & blob from IndexedDB for the active resume
+  const loadOriginalDocForResume = useCallback(async (resume: ResumeData) => {
+    if (resume.originalDocId) {
+      try {
+        const stored = await getOriginalDocument(resume.originalDocId);
+        if (stored) {
+          setActiveOriginalDoc(stored.meta);
+          setActiveOriginalBlob(stored.blob);
+          setPreviewMode(resume.previewMode || (resume.isDirty ? 'editable' : 'original'));
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to load original document from IndexedDB', err);
+      }
+    }
+    setActiveOriginalDoc(null);
+    setActiveOriginalBlob(null);
+    setPreviewMode('editable');
+  }, []);
+
   // Load resumes from LocalStorage on mount
   useEffect(() => {
     const all = loadAllResumes();
@@ -68,14 +92,30 @@ export default function Home() {
     if (found.sectionOrder) {
       setSectionOrder(found.sectionOrder);
     }
-  }, []);
+    loadOriginalDocForResume(found);
+  }, [loadOriginalDocForResume]);
 
-  // Update active resume and auto-save
+  // Update active resume and auto-save (switches to editable mode on actual user edit)
   const handleUpdateResume = useCallback((updated: ResumeData) => {
-    setActiveResume(updated);
-    const savedList = saveCurrentResume(updated);
+    const isDirty = updated.originalDocId ? true : (updated.isDirty ?? false);
+    const updatedResume: ResumeData = {
+      ...updated,
+      isDirty,
+      previewMode: 'editable',
+    };
+    setActiveResume(updatedResume);
+    setPreviewMode('editable');
+    const savedList = saveCurrentResume(updatedResume);
     setResumes(savedList);
   }, []);
+
+  // Toggle preview mode between original and editable
+  const handleTogglePreviewMode = useCallback((mode: 'original' | 'editable') => {
+    setPreviewMode(mode);
+    const updated = { ...activeResume, previewMode: mode };
+    setActiveResume(updated);
+    saveCurrentResume(updated);
+  }, [activeResume]);
 
   // Switch active resume
   const handleSwitchResume = useCallback((id: string) => {
@@ -87,9 +127,10 @@ export default function Home() {
       if (target.sectionOrder) {
         setSectionOrder(target.sectionOrder);
       }
+      loadOriginalDocForResume(target);
       toast({ title: 'Switched Resume', description: `Now editing ${target.title || target.contact.name}.` });
     }
-  }, [toast]);
+  }, [loadOriginalDocForResume, toast]);
 
   // Create new blank or sample resume
   const handleCreateNewResume = useCallback(() => {
@@ -98,10 +139,14 @@ export default function Home() {
       id: `resume-${Date.now()}`,
       title: `Resume #${resumes.length + 1}`,
       updatedAt: new Date().toISOString(),
+      previewMode: 'editable',
     };
     const saved = saveCurrentResume(newResume);
     setResumes(saved);
     setActiveResume(newResume);
+    setActiveOriginalDoc(null);
+    setActiveOriginalBlob(null);
+    setPreviewMode('editable');
     toast({ title: 'New Resume Created', description: 'Start editing your custom details.' });
   }, [resumes.length, toast]);
 
@@ -111,8 +156,9 @@ export default function Home() {
     const { updatedList, newResume } = duplicateResume(activeResume.id);
     setResumes(updatedList);
     setActiveResume(newResume);
+    loadOriginalDocForResume(newResume);
     toast({ title: 'Resume Duplicated', description: `Created copy: "${newResume.title}".` });
-  }, [activeResume, toast]);
+  }, [activeResume, loadOriginalDocForResume, toast]);
 
   // Delete current resume
   const handleDeleteResume = useCallback(() => {
@@ -121,19 +167,27 @@ export default function Home() {
       const { remaining, newActive } = deleteResume(activeResume.id);
       setResumes(remaining);
       setActiveResume(newActive);
+      loadOriginalDocForResume(newActive);
       toast({ title: 'Resume Deleted', description: 'Switched to next available resume.' });
     }
-  }, [activeResume, toast]);
+  }, [activeResume, loadOriginalDocForResume, toast]);
 
   // Import imported resume
-  const handleImportResume = useCallback((imported: ResumeData) => {
+  const handleImportResume = useCallback((imported: ResumeData, originalDoc?: OriginalDocument) => {
     const saved = saveCurrentResume(imported);
     setResumes(saved);
     setActiveResume(imported);
     if (imported.sectionOrder) {
       setSectionOrder(imported.sectionOrder);
     }
-  }, []);
+    if (imported.originalDocId) {
+      loadOriginalDocForResume(imported);
+    } else {
+      setActiveOriginalDoc(null);
+      setActiveOriginalBlob(null);
+      setPreviewMode('editable');
+    }
+  }, [loadOriginalDocForResume]);
 
   // Reset all data
   const handleResetAllData = useCallback(() => {
@@ -146,6 +200,9 @@ export default function Home() {
     setResumes(initial);
     setActiveResume(initial[0]);
     setActiveResumeId(initial[0].id || 'profile-fullstack');
+    setActiveOriginalDoc(null);
+    setActiveOriginalBlob(null);
+    setPreviewMode('editable');
     toast({ title: 'Workspace Reset', description: 'Restored default ATS student templates.' });
   }, [toast]);
 
@@ -182,15 +239,24 @@ export default function Home() {
           skills: data.skills ?? activeResume.skills,
           projects: data.projects ?? activeResume.projects,
           positions: data.positions ?? activeResume.positions,
+          isDirty: true,
+          previewMode: 'editable',
+          versionLabel: role,
         };
         handleUpdateResume(updated);
         toast({
           title: 'Resume Tailored with AI',
-          description: `Optimized and re-ranked for "${role}".`,
+          description: `Optimized and re-ranked for "${role}". Editable version displayed.`,
         });
       } else {
         const localTailored = tailorResume(activeResume, role, jobDescription);
-        handleUpdateResume(localTailored);
+        const updated: ResumeData = {
+          ...localTailored,
+          isDirty: true,
+          previewMode: 'editable',
+          versionLabel: role,
+        };
+        handleUpdateResume(updated);
         toast({
           title: 'Tailored with Built-in Engine',
           description: 'Optimized action verbs and keyword alignment locally.',
@@ -198,7 +264,13 @@ export default function Home() {
       }
     } catch {
       const localTailored = tailorResume(activeResume, role, jobDescription);
-      handleUpdateResume(localTailored);
+      const updated: ResumeData = {
+        ...localTailored,
+        isDirty: true,
+        previewMode: 'editable',
+        versionLabel: role,
+      };
+      handleUpdateResume(updated);
       toast({
         title: 'Tailored Locally',
         description: 'AI server unreachable — applied intelligent local bullet re-ranking.',
@@ -361,6 +433,10 @@ export default function Home() {
           <ResumePreview
             resume={activeResume}
             sectionOrder={sectionOrder}
+            originalDoc={activeOriginalDoc}
+            originalBlob={activeOriginalBlob}
+            previewMode={previewMode}
+            onTogglePreviewMode={handleTogglePreviewMode}
             onOpenCoverLetter={() => setCoverLetterOpen(true)}
           />
         </div>

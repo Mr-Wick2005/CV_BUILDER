@@ -1,6 +1,15 @@
 'use client';
 
-import type { ResumeData, TemplateId, FontFamily, AccentColor, SpacingDensity, BulletStyle, FontSizeScale } from '@/lib/types';
+import type {
+  ResumeData,
+  TemplateId,
+  FontFamily,
+  AccentColor,
+  SpacingDensity,
+  BulletStyle,
+  FontSizeScale,
+  SkillCategory,
+} from '@/lib/types';
 
 interface ResumeDocumentProps {
   resume: ResumeData;
@@ -34,7 +43,6 @@ const BULLET_MAP: Record<BulletStyle, string> = {
 // Auto-bold metrics and key action numbers if boldKeywords is active
 function formatBulletText(text: string, boldKeywords?: boolean) {
   if (!boldKeywords) return text;
-  // Match percentages, multipliers, latency, user counts, dollar amounts
   const parts = text.split(/(\b\d+(?:\.\d+)?(?:%|\+|k|x|ms|s|M|B)?\b|\$\d+(?:,\d+)?)/g);
   return parts.map((part, i) => {
     if (/^(\d+(?:\.\d+)?(?:%|\+|k|x|ms|s|M|B)?|\$\d+(?:,\d+)?)$/.test(part) && part.length > 1) {
@@ -70,49 +78,41 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
   const boldKeywords = style.boldKeywords ?? false;
   const fontScale: FontSizeScale = style.fontSizeScale || 'base';
 
-  // Normalize candidate name
-  let rawName = (c.name || 'VEDANTH GALI').trim();
-  if (rawName.toUpperCase().includes('VEDANTH') && !rawName.includes(' ')) {
-    rawName = rawName.replace(/VEDANTHM?GALI/i, 'VEDANTH GALI').trim();
-  }
-  rawName = rawName.replace(/\s*,\s*.*$/, '').trim();
-  const displayName = rawName.toUpperCase();
+  // Candidate Name
+  const displayName = (c.name || 'YOUR NAME').trim().toUpperCase();
 
-  // Normalize location
-  const displayLocation = (c.location || 'Mumbai, Maharashtra, India')
-    .replace(/^[|•,\s]+/, '')
-    .replace(/\s*,\s*/g, ', ')
-    .trim();
+  // Location
+  const displayLocation = (c.location || '').trim();
 
-  // Density spacing strictly calibrated for single-page A4
+  // Density spacing calibrated for single-page A4
   const densityStyles = {
     compact: {
-      fontSize: fontScale === 'sm' ? '7.8pt' : fontScale === 'lg' ? '8.5pt' : '8.1pt',
-      lineHeight: 1.24,
+      fontSize: fontScale === 'sm' ? '7.8pt' : fontScale === 'lg' ? '9.0pt' : '8.4pt',
+      lineHeight: 1.22,
       sectionMargin: '3px',
       entryMargin: '1.5px',
-      titleSize: '9.2pt',
-      nameSize: '18pt',
+      titleSize: fontScale === 'sm' ? '10.0pt' : fontScale === 'lg' ? '11.5pt' : '10.8pt',
+      nameSize: fontScale === 'sm' ? '25pt' : fontScale === 'lg' ? '30pt' : '27pt',
     },
     standard: {
-      fontSize: fontScale === 'sm' ? '8.1pt' : fontScale === 'lg' ? '9.0pt' : '8.5pt',
-      lineHeight: 1.3,
-      sectionMargin: '4.5px',
-      entryMargin: '2.5px',
-      titleSize: '9.6pt',
-      nameSize: '20pt',
+      fontSize: fontScale === 'sm' ? '8.4pt' : fontScale === 'lg' ? '9.8pt' : '9.2pt',
+      lineHeight: 1.28,
+      sectionMargin: '4px',
+      entryMargin: '2px',
+      titleSize: fontScale === 'sm' ? '11.0pt' : fontScale === 'lg' ? '12.5pt' : '11.8pt',
+      nameSize: fontScale === 'sm' ? '28pt' : fontScale === 'lg' ? '34pt' : '31.5pt',
     },
     relaxed: {
-      fontSize: fontScale === 'sm' ? '8.4pt' : fontScale === 'lg' ? '9.4pt' : '8.8pt',
-      lineHeight: 1.36,
+      fontSize: fontScale === 'sm' ? '9.0pt' : fontScale === 'lg' ? '10.5pt' : '9.8pt',
+      lineHeight: 1.34,
       sectionMargin: '6px',
-      entryMargin: '3.5px',
-      titleSize: '10pt',
-      nameSize: '22pt',
+      entryMargin: '3px',
+      titleSize: fontScale === 'sm' ? '11.8pt' : fontScale === 'lg' ? '13.2pt' : '12.5pt',
+      nameSize: fontScale === 'sm' ? '30pt' : fontScale === 'lg' ? '36pt' : '33.5pt',
     },
   }[density];
 
-  // Helper to render section title according to template
+  // Section Title with full-width thin rule
   const renderSectionTitle = (title: string) => {
     if (template === 'modern-tech') {
       return (
@@ -121,7 +121,7 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
           style={{
             borderLeft: `3.5px solid ${primaryColor}`,
             paddingLeft: '6px',
-            marginBottom: '3px',
+            marginBottom: '2.5px',
           }}
         >
           <span
@@ -144,7 +144,7 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
           style={{
             borderBottom: `1.5px solid ${primaryColor}`,
             paddingBottom: '1.5px',
-            marginBottom: '3px',
+            marginBottom: '2.5px',
           }}
         >
           <span
@@ -156,34 +156,39 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
           >
             {title}
           </span>
-          <span
-            className="h-1 w-8 rounded-full"
-            style={{ backgroundColor: primaryColor }}
-          />
+          <span className="h-1 w-8 rounded-full" style={{ backgroundColor: primaryColor }} />
         </div>
       );
     }
 
-    // Default: Harvard ATS Standard
+    // Default / Harvard ATS / Classic ATS: Bold uppercase with thin rule underneath
     return (
-      <h2
-        className="resume-section-title font-bold uppercase tracking-wide"
+      <div
+        className="resume-section-header"
         style={{
-          fontSize: densityStyles.titleSize,
-          color: primaryColor,
-          borderBottom: `1.2px solid ${primaryColor}`,
-          paddingBottom: '1.5px',
-          marginBottom: '3px',
+          borderBottom: `1px solid ${primaryColor}`,
+          paddingBottom: '1px',
+          marginBottom: '2.5px',
           marginTop: '0px',
         }}
       >
-        {title}
-      </h2>
+        <h2
+          className="resume-section-title font-bold uppercase tracking-wider"
+          style={{
+            fontSize: densityStyles.titleSize,
+            color: primaryColor,
+            margin: 0,
+            padding: 0,
+          }}
+        >
+          {title}
+        </h2>
+      </div>
     );
   };
 
   const renderSection = (id: string) => {
-    // Custom sections handling
+    // Custom sections
     if (id.startsWith('custom-')) {
       const customSec = resume.customSections?.find((cs) => cs.id === id);
       if (!customSec || customSec.items.length === 0) return null;
@@ -242,7 +247,8 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
               style={{
                 fontSize: densityStyles.fontSize,
                 lineHeight: densityStyles.lineHeight,
-                color: '#1f2937',
+                color: '#1e293b',
+                marginTop: '1.5px',
               }}
             >
               {resume.summary}
@@ -261,7 +267,7 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
                   <span className="font-bold text-slate-900" style={{ fontSize: densityStyles.fontSize }}>
                     {e.degree}
                   </span>
-                  <span className="font-semibold text-slate-800 whitespace-nowrap" style={{ fontSize: densityStyles.fontSize }}>
+                  <span className="font-semibold text-slate-800 whitespace-nowrap ml-2" style={{ fontSize: densityStyles.fontSize }}>
                     {e.dates}
                   </span>
                 </div>
@@ -270,12 +276,12 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
                   {e.location && <span className="italic text-slate-600">{e.location}</span>}
                 </div>
                 {e.gpa && (
-                  <div className="text-slate-700" style={{ fontSize: '7.8pt' }}>
+                  <div className="text-slate-700" style={{ fontSize: '7.5pt' }}>
                     <strong>GPA:</strong> {e.gpa}
                   </div>
                 )}
                 {e.coursework && (
-                  <div className="text-slate-600 italic" style={{ fontSize: '7.8pt' }}>
+                  <div className="text-slate-600 italic" style={{ fontSize: '7.5pt' }}>
                     <strong>Relevant Coursework:</strong> {e.coursework}
                   </div>
                 )}
@@ -284,33 +290,95 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
           </section>
         );
 
-      case 'skills':
+      case 'skills': {
         if (!resume.skills || resume.skills.length === 0) return null;
+
+        // Two-Column Technical Skills Layout
+        const hasExplicitColumns = resume.skills.some((s) => s.column === 2);
+        let col1Skills: SkillCategory[] = [];
+        let col2Skills: SkillCategory[] = [];
+
+        if (hasExplicitColumns) {
+          col1Skills = resume.skills.filter((s) => s.column !== 2);
+          col2Skills = resume.skills.filter((s) => s.column === 2);
+        } else if (resume.skills.length >= 4) {
+          const mid = Math.ceil(resume.skills.length / 2);
+          col1Skills = resume.skills.slice(0, mid);
+          col2Skills = resume.skills.slice(mid);
+        } else {
+          col1Skills = resume.skills;
+        }
+
+        const isTwoColumn = col2Skills.length > 0;
+
         return (
           <section key="skills" className="resume-section" style={{ marginTop: densityStyles.sectionMargin }}>
             {renderSectionTitle('Technical Skills')}
-            <div className="space-y-0.5">
-              {resume.skills.map((s, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-baseline"
-                  style={{
-                    fontSize: densityStyles.fontSize,
-                    lineHeight: densityStyles.lineHeight,
-                  }}
-                >
-                  <span className="text-slate-800 mr-1.5 font-bold">{bulletChar}</span>
-                  <span className="font-bold text-slate-900 mr-1.5 shrink-0">
-                    {s.category}:
-                  </span>
-                  <span className="text-slate-800 font-normal">
-                    {s.skills.join(', ')}
-                  </span>
+            {isTwoColumn ? (
+              <div className="grid grid-cols-2 gap-x-6 mt-1">
+                {/* Left Column */}
+                <div className="space-y-0.5">
+                  {col1Skills.map((s, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-baseline text-justify"
+                      style={{
+                        fontSize: densityStyles.fontSize,
+                        lineHeight: densityStyles.lineHeight,
+                      }}
+                    >
+                      <span className="text-slate-800 mr-1.5 font-bold shrink-0">{bulletChar}</span>
+                      <div>
+                        <span className="font-bold text-slate-900 mr-1">{s.category}:</span>
+                        <span className="text-slate-800 font-normal">{s.skills.join(', ')}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+
+                {/* Right Column */}
+                <div className="space-y-0.5">
+                  {col2Skills.map((s, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-baseline text-justify"
+                      style={{
+                        fontSize: densityStyles.fontSize,
+                        lineHeight: densityStyles.lineHeight,
+                      }}
+                    >
+                      <span className="text-slate-800 mr-1.5 font-bold shrink-0">{bulletChar}</span>
+                      <div>
+                        <span className="font-bold text-slate-900 mr-1">{s.category}:</span>
+                        <span className="text-slate-800 font-normal">{s.skills.join(', ')}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-0.5 mt-1">
+                {col1Skills.map((s, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-baseline text-justify"
+                    style={{
+                      fontSize: densityStyles.fontSize,
+                      lineHeight: densityStyles.lineHeight,
+                    }}
+                  >
+                    <span className="text-slate-800 mr-1.5 font-bold shrink-0">{bulletChar}</span>
+                    <div>
+                      <span className="font-bold text-slate-900 mr-1">{s.category}:</span>
+                      <span className="text-slate-800 font-normal">{s.skills.join(', ')}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         );
+      }
 
       case 'positions':
         if (!resume.positions || resume.positions.length === 0) return null;
@@ -324,7 +392,7 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
                     {pos.title}
                   </span>
                   {pos.dates && (
-                    <span className="font-semibold text-slate-800 whitespace-nowrap" style={{ fontSize: densityStyles.fontSize }}>
+                    <span className="font-semibold text-slate-800 whitespace-nowrap ml-2" style={{ fontSize: densityStyles.fontSize }}>
                       {pos.dates}
                     </span>
                   )}
@@ -355,7 +423,7 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
           </section>
         );
 
-      case 'projects':
+      case 'projects': {
         if (!resume.projects || resume.projects.length === 0) return null;
         const visibleProjects = resume.projects.filter((p) => p.visible !== false);
         if (visibleProjects.length === 0) return null;
@@ -366,31 +434,47 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
             {visibleProjects.map((p, pIdx) => (
               <div key={pIdx} className="resume-entry" style={{ marginBottom: densityStyles.entryMargin }}>
                 <div className="flex items-baseline justify-between flex-wrap gap-y-0.5">
-                  {/* Left: Project Name & Tech Stack */}
+                  {/* Project Name & Tech Stack */}
                   <div className="flex items-baseline flex-wrap gap-1">
-                    <span className="font-bold text-slate-900 underline decoration-slate-400 underline-offset-2" style={{ fontSize: densityStyles.fontSize }}>
-                      {p.name}
-                    </span>
+                    {p.link ? (
+                      <a
+                        href={p.link.startsWith('http') ? p.link : `https://${p.link}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-slate-900 underline decoration-slate-400 hover:text-primary transition-colors"
+                        style={{ fontSize: densityStyles.fontSize }}
+                      >
+                        {p.name}
+                      </a>
+                    ) : (
+                      <span
+                        className="font-bold text-slate-900 underline decoration-slate-400"
+                        style={{ fontSize: densityStyles.fontSize }}
+                      >
+                        {p.name}
+                      </span>
+                    )}
+
                     {p.tech && p.tech.length > 0 && (
                       <>
                         <span className="text-slate-400 font-normal px-0.5">|</span>
-                        <span className="font-semibold text-slate-700 italic" style={{ fontSize: densityStyles.fontSize }}>
+                        <span className="font-normal text-slate-700" style={{ fontSize: densityStyles.fontSize }}>
                           {p.tech.join(', ')}
                         </span>
                       </>
                     )}
                   </div>
 
-                  {/* Right: Live Demo / GitHub Links */}
+                  {/* Links & Date */}
                   <div className="flex items-center gap-2">
                     {p.link && (
                       <a
                         href={p.link.startsWith('http') ? p.link : `https://${p.link}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 font-medium text-slate-700 hover:text-primary underline text-[7.5pt]"
+                        className="inline-flex items-center gap-0.5 text-slate-700 hover:text-primary underline text-[7.5pt]"
                       >
-                        <span>Live Demo ↗</span>
+                        <span>Demo ↗</span>
                       </a>
                     )}
                     {p.github && (
@@ -398,15 +482,8 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
                         href={p.github.startsWith('http') ? p.github : `https://${p.github}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 font-medium text-slate-700 hover:text-primary underline text-[7.5pt]"
+                        className="inline-flex items-center gap-0.5 text-slate-700 hover:text-primary underline text-[7.5pt]"
                       >
-                        <svg className="w-2.5 h-2.5 fill-current shrink-0" viewBox="0 0 24 24">
-                          <path
-                            fillRule="evenodd"
-                            clipRule="evenodd"
-                            d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                          />
-                        </svg>
                         <span>Code ↗</span>
                       </a>
                     )}
@@ -437,13 +514,14 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
             ))}
           </section>
         );
+      }
 
       case 'certifications':
         if (!resume.certifications || resume.certifications.length === 0) return null;
         return (
           <section key="certifications" className="resume-section" style={{ marginTop: densityStyles.sectionMargin }}>
             {renderSectionTitle('Certifications')}
-            <ul className="resume-bullets list-disc pl-4 space-y-0.5">
+            <ul className="resume-bullets list-disc pl-4 space-y-0.5 mt-0.5">
               {resume.certifications.map((cert, cIdx) => (
                 <li
                   key={cIdx}
@@ -483,16 +561,33 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
 
   return (
     <div
-      className={`resume-sheet template-${template}`}
+      className={`resume-sheet template-${template} relative bg-white shadow-xl`}
       style={{
         fontFamily,
         color: '#0f172a',
+        width: '794px',
+        minHeight: '1123px',
+        boxSizing: 'border-box',
+        padding: '28px 36px',
       }}
     >
       {/* Candidate Header */}
-      <div className={`resume-header template-${template}-header text-center pb-1.5`}>
+      <div className={`resume-header template-${template}-header relative pb-1`}>
+        {/* Location small on top right */}
+        {displayLocation && (
+          <div
+            className="resume-location-badge absolute right-0 top-0 text-slate-700 font-normal"
+            style={{ fontSize: '8.0pt' }}
+          >
+            {displayLocation}
+          </div>
+        )}
+
+        {/* Large Prominent Candidate Name */}
         <h1
-          className="resume-name font-extrabold uppercase tracking-wider text-slate-900 leading-tight"
+          className={`resume-name font-extrabold uppercase tracking-wide text-slate-900 ${
+            template === 'modern-tech' || template === 'executive-slate' ? 'text-left' : 'text-center'
+          } leading-tight pt-1`}
           style={{
             fontSize: densityStyles.nameSize,
             color: primaryColor,
@@ -501,30 +596,27 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
           {displayName}
         </h1>
 
-        {/* Optional Headline / Tagline */}
+        {/* Optional Headline */}
         {c.headline && (
           <div
-            className="resume-headline text-slate-700 font-semibold tracking-wide uppercase mt-0.5"
-            style={{ fontSize: '8.8pt', color: baseColor.secondary }}
+            className={`resume-headline text-slate-700 font-semibold tracking-wide uppercase ${
+              template === 'modern-tech' || template === 'executive-slate' ? 'text-left' : 'text-center'
+            } mt-0.5`}
+            style={{ fontSize: '8.5pt', color: baseColor.secondary }}
           >
             {c.headline}
           </div>
         )}
 
-        {/* Clean, Unified Single-Row Contact Bar with Icons */}
-        <div className="resume-contact-bar flex items-center justify-center flex-wrap gap-x-2 gap-y-1 mt-1 text-slate-700">
-          {displayLocation && (
-            <span className="resume-contact-item font-medium text-slate-800">
-              {displayLocation}
-            </span>
-          )}
-
-          {displayLocation && (c.phone || c.email) && (
-            <span className="resume-contact-pipe text-slate-400 font-light">|</span>
-          )}
-
+        {/* Single Contact Row with Divider Pipes and Clickable Links */}
+        <div
+          className={`resume-contact-bar flex items-center ${
+            template === 'modern-tech' || template === 'executive-slate' ? 'justify-start' : 'justify-center'
+          } flex-wrap gap-x-2.5 gap-y-1 mt-1.5 text-slate-800`}
+          style={{ fontSize: '8.4pt' }}
+        >
           {c.phone && (
-            <span className="resume-contact-item font-medium text-slate-800">
+            <span className="resume-contact-item font-medium">
               {c.phone}
             </span>
           )}
@@ -551,7 +643,7 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
                 rel="noreferrer"
                 className="resume-social-link inline-flex items-center gap-1 font-medium text-slate-900 hover:underline"
               >
-                <svg className="w-3 h-3 text-slate-800 fill-current shrink-0" viewBox="0 0 24 24">
+                <svg className="w-2.5 h-2.5 text-slate-800 fill-current shrink-0" viewBox="0 0 24 24">
                   <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 8.76a1.45 1.45 0 0 0 1.45-1.45 1.45 1.45 0 0 0-1.45-1.45A1.45 1.45 0 0 0 5 7.31c0 .8.65 1.45 1.46 1.45m1.39 9.97v-8.37H5.07v8.37h2.78z" />
                 </svg>
                 <span>LinkedIn</span>
@@ -568,7 +660,7 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
                 rel="noreferrer"
                 className="resume-social-link inline-flex items-center gap-1 font-medium text-slate-900 hover:underline"
               >
-                <svg className="w-3 h-3 text-slate-800 fill-current shrink-0" viewBox="0 0 24 24">
+                <svg className="w-2.5 h-2.5 text-slate-800 fill-current shrink-0" viewBox="0 0 24 24">
                   <path
                     fillRule="evenodd"
                     clipRule="evenodd"
@@ -610,7 +702,7 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
         </div>
       </div>
 
-      {/* Render All Resume Sections */}
+      {/* Render All Resume Sections in Order */}
       <div className="resume-body space-y-1">
         {sectionOrder.map((id) => renderSection(id))}
       </div>

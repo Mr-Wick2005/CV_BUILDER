@@ -25,6 +25,7 @@ export interface SkillCategory {
   id?: string;
   category: string;
   skills: string[];
+  column?: 1 | 2;
 }
 
 export interface ProjectEntry {
@@ -90,6 +91,29 @@ export interface ResumeStyleSettings {
   headerAlignment?: 'center' | 'left';
 }
 
+export interface OriginalDocument {
+  id: string;
+  type: 'pdf';
+  fileName: string;          // exact uploaded name
+  mimeType: 'application/pdf';
+  sizeBytes: number;
+  sha256: string;            // integrity check of original bytes
+  uploadedAt: string;        // ISO
+  pageCount?: number;
+  blobRef: string;           // key/path to stored bytes in IndexedDB
+}
+
+export interface EditableResume {
+  id: string;
+  sourceDocumentId?: string; // link to OriginalDocument
+  versionLabel?: string;     // e.g., "Original", "Full Stack Developer"
+  baseVersionId?: string;    // parent version (future-proofing)
+  data: ResumeData;          // reuse existing resume schema
+  extractionStatus: 'ok' | 'partial' | 'failed';
+  isDirty: boolean;          // true once user edits or AI tailoring is applied
+  updatedAt: string;
+}
+
 export interface ResumeData {
   id?: string;
   title?: string;
@@ -104,6 +128,11 @@ export interface ResumeData {
   style?: ResumeStyleSettings;
   sectionOrder?: string[];
   updatedAt?: string;
+  originalDocId?: string;
+  isDirty?: boolean;
+  extractionStatus?: 'ok' | 'partial' | 'failed';
+  versionLabel?: string;
+  previewMode?: 'original' | 'editable';
 }
 
 export type TargetRole =

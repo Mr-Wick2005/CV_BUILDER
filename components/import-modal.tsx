@@ -21,16 +21,26 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { SAMPLE_PROFILES } from '@/lib/sample-profiles';
-import { parseResumeSmart } from '@/lib/parser';
-import type { ResumeData } from '@/lib/types';
+import { SAMPLE_PROFILES, DEFAULT_STYLE_SETTINGS, DEFAULT_SECTION_ORDER } from '@/lib/sample-profiles';
+import {
+  parseResumeSmart,
+  parseResumeFromLayout,
+  cleanPdfArtifacts,
+  type LayoutExtractedDoc,
+  type LayoutLine,
+  type PdfTextItem,
+  type PdfAnnotation,
+} from '@/lib/parser';
+import type { ResumeData, OriginalDocument } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { getUserApiKey } from '@/lib/storage';
+import { saveOriginalDocument, computeSha256 } from '@/lib/original-doc-storage';
+import { loadPdfJs } from '@/lib/pdf-loader';
 
 interface ImportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onImportResume: (resume: ResumeData) => void;
+  onImportResume: (resume: ResumeData, originalDoc?: OriginalDocument) => void;
 }
 
 export function ImportModal({ open, onOpenChange, onImportResume }: ImportModalProps) {
@@ -41,17 +51,7 @@ export function ImportModal({ open, onOpenChange, onImportResume }: ImportModalP
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const handleParseText = async (text: string, hintedName?: string) => {
-    if (!text || text.trim().length < 15) {
-      toast({
-        title: 'Insufficient text',
-        description: 'Please provide at least 15 characters of resume content.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setLoading(true);
+  const handleParseText = async (text: string, hintedName?: string): Promise<ResumeData> => {
     try {
       const userApiKey = getUserApiKey();
       const res = await fetch('/api/parse-resume', {
@@ -66,128 +66,147 @@ export function ImportModal({ open, onOpenChange, onImportResume }: ImportModalP
           parsed.contact.name = hintedName;
           parsed.title = `${hintedName}'s Resume`;
         }
-        onImportResume(parsed);
-        toast({
-          title: 'Resume Imported Successfully',
-          description: `Loaded ${parsed.contact.name || 'your CV'} ready for optimization.`,
-        });
-        onOpenChange(false);
-      } else {
-        const local = parseResumeSmart(text, hintedName);
-        onImportResume(local);
-        toast({
-          title: 'Resume Imported',
-          description: `Extracted sections for ${local.contact.name}.`,
-        });
-        onOpenChange(false);
+        return parsed;
       }
+      return parseResumeSmart(text, hintedName);
     } catch {
-      const local = parseResumeSmart(text, hintedName);
-      onImportResume(local);
-      toast({
-        title: 'Resume Imported',
-        description: `Extracted sections for ${local.contact.name}.`,
-      });
-      onOpenChange(false);
-    } finally {
-      setLoading(false);
+      return parseResumeSmart(text, hintedName);
     }
   };
 
-  // Robust line-by-line client-side PDF text extraction with largest-font title/name detection
-  const extractTextFromPdf = async (file: File): Promise<{ fullText: string; hintedName: string }> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          if (typeof window !== 'undefined') {
-            // @ts-expect-error dynamic window injection
-            let pdfjs = window.pdfjsLib;
-            if (!pdfjs) {
-              const script = document.createElement('script');
-              script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-              document.head.appendChild(script);
-              await new Promise((resScript) => {
-                script.onload = resScript;
-              });
-              // @ts-expect-error dynamic window injection
-              pdfjs = window.pdfjsLib;
-              if (pdfjs) {
-                pdfjs.GlobalWorkerOptions.workerSrc =
-                  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-              }
-            }
+  const handleParseLayout = async (layout: LayoutExtractedDoc): Promise<ResumeData> => {
+    try {
+      const userApiKey = getUserApiKey();
+      const res = await fetch('/api/parse-resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layout, userApiKey }),
+      });
 
-            if (pdfjs) {
-              const typedarray = new Uint8Array(reader.result as ArrayBuffer);
-              const pdf = await pdfjs.getDocument({ data: typedarray }).promise;
-              let fullText = '';
-              let maxFontSize = 0;
-              let hintedName = '';
+      if (res.ok) {
+        return (await res.json()) as ResumeData;
+      }
+      return parseResumeFromLayout(layout);
+    } catch {
+      return parseResumeFromLayout(layout);
+    }
+  };
 
-              for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                const items = textContent.items as Array<{ str: string; transform: number[]; hasEOL?: boolean }>;
+  // Layout-aware client-side PDF extraction with items, lines, columns, and link annotations
+  const extractLayoutFromPdf = async (buffer: ArrayBuffer): Promise<LayoutExtractedDoc> => {
+    const pdfjs = await loadPdfJs();
+    if (!pdfjs) throw new Error('PDF.js unavailable');
 
-                // Check for largest font item on page 1 (candidate name)
-                if (i === 1) {
-                  for (const it of items) {
-                    const fontSize = Math.abs(it.transform[0]) || Math.abs(it.transform[3]) || 0;
-                    const str = it.str.trim();
-                    if (
-                      fontSize > maxFontSize &&
-                      str.length >= 3 &&
-                      str.length <= 35 &&
-                      !str.includes('@') &&
-                      !str.includes('http') &&
-                      !str.toLowerCase().includes('university') &&
-                      !str.toLowerCase().includes('college')
-                    ) {
-                      maxFontSize = fontSize;
-                      hintedName = str.toUpperCase();
-                    }
-                  }
-                }
+    const typedarray = new Uint8Array(buffer);
+    const pdf = await pdfjs.getDocument({ data: typedarray }).promise;
+    const allLines: LayoutLine[] = [];
+    const allAnnotations: PdfAnnotation[] = [];
+    const allRawItems: PdfTextItem[] = [];
+    let fullRawText = '';
 
-                // Sort items by Y (top to bottom) then X (left to right)
-                items.sort((a, b) => {
-                  const yDiff = b.transform[5] - a.transform[5];
-                  if (Math.abs(yDiff) > 4) return yDiff;
-                  return a.transform[4] - b.transform[4];
-                });
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const annots = await page.getAnnotations();
 
-                let lastY: number | null = null;
-                const pageLines: string[] = [];
-                let currentLine = '';
-
-                for (const item of items) {
-                  if (!item.str || !item.str.trim()) continue;
-                  const currentY = item.transform[5];
-
-                  if (lastY !== null && Math.abs(currentY - lastY) > 4) {
-                    if (currentLine.trim()) pageLines.push(currentLine.trim());
-                    currentLine = item.str.trim();
-                  } else {
-                    currentLine += (currentLine ? ' ' : '') + item.str.trim();
-                  }
-                  lastY = currentY;
-                }
-
-                if (currentLine.trim()) pageLines.push(currentLine.trim());
-                fullText += pageLines.join('\n') + '\n';
-              }
-              resolve({ fullText, hintedName });
-              return;
-            }
-          }
-          resolve({ fullText: '', hintedName: '' });
-        } catch {
-          resolve({ fullText: '', hintedName: '' });
+      for (const a of annots) {
+        if (a.subtype === 'Link' && a.url) {
+          allAnnotations.push({
+            type: 'Link',
+            url: a.url,
+            rect: a.rect,
+            pageNum,
+          });
         }
-      };
-      reader.readAsArrayBuffer(file);
+      }
+
+      const items: PdfTextItem[] = (textContent.items as any[])
+        .map((it) => ({
+          str: it.str || '',
+          x: it.transform[4],
+          y: it.transform[5],
+          fontSize: Math.abs(it.transform[0]) || Math.abs(it.transform[3]) || 10,
+          fontName: it.fontName || '',
+        }))
+        .filter((it) => it.str && it.str.trim());
+
+      allRawItems.push(...items);
+
+      // Sort items by Y descending (top to bottom), then X ascending (left to right)
+      items.sort((a, b) => {
+        if (Math.abs(b.y - a.y) > 3.5) return b.y - a.y;
+        return a.x - b.x;
+      });
+
+      const lines: LayoutLine[] = [];
+      let currentLineItems: PdfTextItem[] = [];
+      let currentY: number | null = null;
+
+      for (const item of items) {
+        if (currentY === null || Math.abs(item.y - currentY) > 3.5) {
+          if (currentLineItems.length > 0 && currentY !== null) {
+            lines.push(processLayoutLine(currentLineItems, currentY));
+          }
+          currentLineItems = [item];
+          currentY = item.y;
+        } else {
+          currentLineItems.push(item);
+        }
+      }
+      if (currentLineItems.length > 0 && currentY !== null) {
+        lines.push(processLayoutLine(currentLineItems, currentY));
+      }
+
+      allLines.push(...lines);
+      fullRawText += lines.map((l) => l.text).join('\n') + '\n';
+    }
+
+    return {
+      rawText: fullRawText,
+      lines: allLines,
+      annotations: allAnnotations,
+      rawItems: allRawItems,
+      pageCount: pdf.numPages,
+    };
+  };
+
+  const processLayoutLine = (items: PdfTextItem[], y: number): LayoutLine => {
+    items.sort((a, b) => a.x - b.x);
+    const maxFontSize = Math.max(...items.map((i) => i.fontSize));
+
+    // Detect column boundaries (gap > 35px and item jumps across midpoint ~250px)
+    const columns: { x: number; text: string; items: PdfTextItem[] }[] = [];
+    let currentCol = [items[0]];
+
+    for (let i = 1; i < items.length; i++) {
+      const prev = items[i - 1];
+      const curr = items[i];
+      if (curr.x - prev.x > 35 && curr.x >= 250 && prev.x < 250) {
+        columns.push({
+          x: currentCol[0].x,
+          text: cleanPdfArtifacts(currentCol.map((c) => c.str).join(' ')),
+          items: currentCol,
+        });
+        currentCol = [curr];
+      } else {
+        currentCol.push(curr);
+      }
+    }
+    columns.push({
+      x: currentCol[0].x,
+      text: cleanPdfArtifacts(currentCol.map((c) => c.str).join(' ')),
+      items: currentCol,
     });
+
+    const fullText = cleanPdfArtifacts(items.map((i) => i.str).join(' '));
+
+    return {
+      y,
+      fontSize: maxFontSize,
+      items,
+      text: fullText,
+      columns: columns.length > 1 ? columns : undefined,
+    };
   };
 
   const handleFileUpload = async (file: File) => {
@@ -209,34 +228,123 @@ export function ImportModal({ open, onOpenChange, onImportResume }: ImportModalP
 
       if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
         const text = await file.text();
-        await handleParseText(text);
+        const parsed = await handleParseText(text);
+        onImportResume(parsed);
+        toast({
+          title: 'Resume Imported',
+          description: `Extracted sections for ${parsed.contact.name || 'your CV'}.`,
+        });
+        onOpenChange(false);
+        setLoading(false);
         return;
       }
 
       if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-        const { fullText, hintedName } = await extractTextFromPdf(file);
-        if (fullText && fullText.trim().length > 20) {
-          await handleParseText(fullText, hintedName);
+        // 1. Read raw bytes unmodified
+        const arrayBuffer = await file.arrayBuffer();
+
+        // 2. Compute SHA-256 integrity hash
+        const sha256 = await computeSha256(arrayBuffer);
+
+        // 3. Create immutable OriginalDocument record
+        const docId = `orig-doc-${Date.now()}`;
+        const originalDoc: OriginalDocument = {
+          id: docId,
+          type: 'pdf',
+          fileName: file.name,
+          mimeType: 'application/pdf',
+          sizeBytes: file.size,
+          sha256,
+          uploadedAt: new Date().toISOString(),
+          blobRef: `blob-${docId}`,
+        };
+
+        // 4. Persist unmodified raw bytes to IndexedDB BEFORE running extraction
+        await saveOriginalDocument(originalDoc, arrayBuffer);
+
+        // 5. Layout-Aware Structured Extraction
+        let parsedResume: ResumeData;
+        let extractionStatus: 'ok' | 'partial' | 'failed' = 'ok';
+
+        try {
+          const layout = await extractLayoutFromPdf(arrayBuffer);
+          originalDoc.pageCount = layout.pageCount;
+
+          if (layout.rawText && layout.rawText.trim().length >= 15) {
+            parsedResume = await handleParseLayout(layout);
+            extractionStatus = 'ok';
+          } else {
+            extractionStatus = 'partial';
+            const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+            parsedResume = {
+              ...SAMPLE_PROFILES['blank'].data,
+              id: `resume-${Date.now()}`,
+              title: `${file.name}`,
+              contact: {
+                ...SAMPLE_PROFILES['blank'].data.contact,
+                name: baseName.toUpperCase(),
+              },
+            };
+          }
+        } catch (extractErr) {
+          console.error('PDF extraction failed:', extractErr);
+          extractionStatus = 'failed';
+          const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+          parsedResume = {
+            ...SAMPLE_PROFILES['blank'].data,
+            id: `resume-${Date.now()}`,
+            title: `${file.name}`,
+            contact: {
+              ...SAMPLE_PROFILES['blank'].data.contact,
+              name: baseName.toUpperCase(),
+            },
+          };
+        }
+
+        // Link the editable resume to the immutable original document
+        parsedResume.originalDocId = docId;
+        parsedResume.isDirty = false;
+        parsedResume.previewMode = 'original';
+        parsedResume.extractionStatus = extractionStatus;
+        parsedResume.versionLabel = 'Original';
+
+        onImportResume(parsedResume, originalDoc);
+
+        if (extractionStatus === 'ok') {
+          toast({
+            title: 'Original PDF Preserved & Loaded',
+            description: `Loaded ${parsedResume.contact.name || 'your CV'} with exact data extraction.`,
+          });
         } else {
           toast({
-            title: 'Scanned PDF detected',
-            description: 'Could not extract text from this PDF. Please paste resume text directly in the Paste tab.',
-            variant: 'destructive',
+            title: 'Original PDF Preserved',
+            description:
+              'Your CV was uploaded successfully, but some editable information could not be extracted. The original PDF is preserved.',
+            variant: 'default',
           });
-          setLoading(false);
         }
+
+        onOpenChange(false);
+        setLoading(false);
         return;
       }
 
-      // Default text extraction
+      // Default text extraction fallback
       const raw = await file.text();
-      await handleParseText(raw);
+      const parsed = await handleParseText(raw);
+      onImportResume(parsed);
+      toast({
+        title: 'Resume Imported',
+        description: `Extracted sections for ${parsed.contact.name || 'your CV'}.`,
+      });
+      onOpenChange(false);
     } catch {
       toast({
         title: 'File read error',
         description: 'Could not read file. Please try pasting the text instead.',
         variant: 'destructive',
       });
+    } finally {
       setLoading(false);
     }
   };
