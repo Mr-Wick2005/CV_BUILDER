@@ -210,6 +210,15 @@ export function ImportModal({ open, onOpenChange, onImportResume }: ImportModalP
   };
 
   const handleFileUpload = async (file: File) => {
+    if (file.size > 20 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Please upload a resume under 20MB.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setFileName(file.name);
     setLoading(true);
 
@@ -412,7 +421,7 @@ export function ImportModal({ open, onOpenChange, onImportResume }: ImportModalP
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.txt,.json,.md,.docx"
+                accept=".pdf,.txt,.json,.md"
                 className="hidden"
                 onChange={(e) => {
                   if (e.target.files && e.target.files[0]) {
@@ -471,7 +480,26 @@ export function ImportModal({ open, onOpenChange, onImportResume }: ImportModalP
             </div>
 
             <Button
-              onClick={() => handleParseText(pasteText)}
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const parsed = await handleParseText(pasteText);
+                  onImportResume(parsed);
+                  toast({
+                    title: 'Resume Imported',
+                    description: `Loaded resume for ${parsed.contact.name || 'your profile'}.`,
+                  });
+                  onOpenChange(false);
+                } catch {
+                  toast({
+                    title: 'Import Failed',
+                    description: 'Could not parse pasted resume. Please check the content.',
+                    variant: 'destructive',
+                  });
+                } finally {
+                  setLoading(false);
+                }
+              }}
               disabled={loading || pasteText.trim().length < 15}
               className="w-full gap-2"
             >

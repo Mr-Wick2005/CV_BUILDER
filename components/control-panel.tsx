@@ -47,6 +47,7 @@ import type {
 } from '@/lib/types';
 import { ResumeEditor } from '@/components/editor/resume-editor';
 import { ATSScoreCard } from '@/components/ats-score-card';
+import { AICopilotChat } from '@/components/ai-copilot-chat';
 
 interface ControlPanelProps {
   role: string;
@@ -112,7 +113,7 @@ export function ControlPanel({
   onAddSectionToOrder,
   sectionOrder,
 }: ControlPanelProps) {
-  const [activeTab, setActiveTab] = useState<'editor' | 'tailor' | 'ats' | 'design'>('editor');
+  const [activeTab, setActiveTab] = useState<'copilot' | 'editor' | 'tailor' | 'ats' | 'design'>('copilot');
   const [customRole, setCustomRole] = useState('');
   const [isCustomMode, setIsCustomMode] = useState(false);
 
@@ -185,29 +186,44 @@ export function ControlPanel({
       {/* Studio Tabs Navigation */}
       <div className="border-b border-border bg-card/70 px-4 pt-3 backdrop-blur">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-          <TabsList className="grid grid-cols-4 w-full h-9 bg-secondary/40">
-            <TabsTrigger value="editor" className="text-xs gap-1.5 px-1 sm:px-2">
+          <TabsList className="grid grid-cols-5 w-full h-9 bg-secondary/40">
+            <TabsTrigger value="copilot" className="text-xs gap-1 px-1">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span>Copilot</span>
+            </TabsTrigger>
+            <TabsTrigger value="editor" className="text-xs gap-1 px-1">
               <FileEdit className="h-3.5 w-3.5" />
               <span>Editor</span>
             </TabsTrigger>
-            <TabsTrigger value="tailor" className="text-xs gap-1.5 px-1 sm:px-2">
+            <TabsTrigger value="tailor" className="text-xs gap-1 px-1">
               <Target className="h-3.5 w-3.5" />
-              <span>AI Tailor</span>
+              <span>Tailor</span>
             </TabsTrigger>
-            <TabsTrigger value="ats" className="text-xs gap-1.5 px-1 sm:px-2">
+            <TabsTrigger value="ats" className="text-xs gap-1 px-1">
               <BarChart3 className="h-3.5 w-3.5" />
-              <span>ATS Score</span>
+              <span>ATS</span>
             </TabsTrigger>
-            <TabsTrigger value="design" className="text-xs gap-1.5 px-1 sm:px-2">
+            <TabsTrigger value="design" className="text-xs gap-1 px-1">
               <Palette className="h-3.5 w-3.5" />
-              <span>Design</span>
+              <span>Theme</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
 
       {/* Main Tab Content Panels */}
-      <div className="flex-1 overflow-y-auto app-scroll p-4 sm:p-5">
+      <div className={`flex-1 ${activeTab === 'copilot' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto app-scroll p-4 sm:p-5'}`}>
+        {/* Tab 0: AI Career Copilot Chatbot */}
+        {activeTab === 'copilot' && (
+          <AICopilotChat
+            resume={resume}
+            onResumeChange={onResumeChange}
+            targetRole={role}
+            setTargetRole={setRole}
+            jobDescription={jobDescription}
+            setJobDescription={setJobDescription}
+          />
+        )}
         {/* Tab 1: Interactive Resume Editor */}
         {activeTab === 'editor' && (
           <div className="space-y-4">

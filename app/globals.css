@@ -351,15 +351,18 @@
   .resume-sheet {
     width: 210mm !important;
     min-height: 297mm !important;
-    max-height: 297mm !important;
     margin: 0 !important;
-    padding: 10mm 15mm 10mm 15mm !important;
+    padding: 12mm 15mm 12mm 15mm !important;
     box-shadow: none !important;
     border: none !important;
     transform: none !important;
-    page-break-inside: avoid !important;
-    page-break-after: avoid !important;
-    overflow: hidden !important;
+  }
+
+  .resume-section,
+  .resume-entry,
+  .resume-education-entry {
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
 
   .no-print {

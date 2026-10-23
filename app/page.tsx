@@ -438,6 +438,7 @@ export default function Home() {
             previewMode={previewMode}
             onTogglePreviewMode={handleTogglePreviewMode}
             onOpenCoverLetter={() => setCoverLetterOpen(true)}
+            onResumeChange={handleUpdateResume}
           />
         </div>
       </div>

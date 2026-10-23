@@ -40,6 +40,7 @@ interface ResumePreviewProps {
   previewMode?: 'original' | 'editable';
   onTogglePreviewMode?: (mode: 'original' | 'editable') => void;
   onOpenCoverLetter: () => void;
+  onResumeChange?: (updated: ResumeData) => void;
 }
 
 export function ResumePreview({
@@ -50,6 +51,7 @@ export function ResumePreview({
   previewMode = 'editable',
   onTogglePreviewMode,
   onOpenCoverLetter,
+  onResumeChange,
 }: ResumePreviewProps) {
   const [zoom, setZoom] = useState(0.85);
   const [copied, setCopied] = useState(false);
@@ -325,13 +327,27 @@ export function ResumePreview({
           </div>
         ) : (
           <div
-            className="print-area transition-transform duration-150 ease-out my-2"
+            className="my-3 transition-[width,height] duration-150 flex justify-center"
             style={{
-              transform: `scale(${zoom})`,
-              transformOrigin: 'top center',
+              width: `${Math.round(794 * zoom)}px`,
+              minHeight: `${Math.round(1123 * zoom)}px`,
             }}
           >
-            <ResumeDocument resume={resume} sectionOrder={sectionOrder} />
+            <div
+              className="print-area transition-transform duration-150 ease-out origin-top-left"
+              style={{
+                transform: `scale(${zoom})`,
+                transformOrigin: 'top left',
+                width: '794px',
+              }}
+            >
+              <ResumeDocument
+                resume={resume}
+                sectionOrder={sectionOrder}
+                editable={!isOriginalMode}
+                onChange={onResumeChange}
+              />
+            </div>
           </div>
         )}
       </div>

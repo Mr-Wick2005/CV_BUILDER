@@ -43,18 +43,13 @@ export interface LayoutExtractedDoc {
 export function cleanPdfArtifacts(text: string): string {
   if (!text) return '';
   return text
-    // Normalize comma and colon spacing: "Mumbai ,Maharashtra ,India" -> "Mumbai, Maharashtra, India"
+    // Normalize comma and colon spacing: "City ,State ,Country" -> "City, State, Country"
     .replace(/\s+([,:;])/g, '$1')
     .replace(/([,:;])(?=[^\s\d])/g, '$1 ')
-    // Fix split single capital letters: "C oordinated" -> "Coordinated", "S haping" -> "Shaping"
+    // Fix split single capital letters followed by lowercase: "C oordinated" -> "Coordinated"
     .replace(/\b([A-Z])\s+([a-z]{2,})\b/g, '$1$2')
-    // Fix split suffixes: "Manag ed" -> "Managed", "build ing" -> "building"
-    .replace(/\b([a-zA-Z]{3,})\s+(ed|ing|tion|ment|able|ly|ers|es|ive|form|al|ic)\b/gi, '$1$2')
-    // Fix specific known words commonly corrupted by PDF layout
-    .replace(/\bC\s+oordinated\b/gi, 'Coordinated')
-    .replace(/\bCre\s*ative\b/gi, 'Creative')
-    .replace(/\bS\s*haping\b/gi, 'Shaping')
-    .replace(/\bManag\s*ed\b/gi, 'Managed')
+    // Fix split suffixes: "build ing" -> "building", "develop ed" -> "developed"
+    .replace(/\b([a-zA-Z]{3,})\s+(ed|ing|tion|ment|able|ly|ers|es|ive|form|al|ic|ness|ship|less)\b/gi, '$1$2')
     .replace(/[ \t]+/g, ' ')
     .trim();
 }
@@ -63,20 +58,50 @@ export function cleanPdfArtifacts(text: string): string {
 export function parseResumeFromLayout(layout: LayoutExtractedDoc, hintedName?: string): ResumeData {
   const { lines, annotations, rawItems } = layout;
 
-  // 1. Extract Full Name
+  // 1. Extract Full Name (robust multi-part line grouping)
   let name = hintedName ? cleanPdfArtifacts(hintedName).trim() : '';
   if (!name) {
-    let maxNameSize = 0;
-    for (const it of rawItems) {
-      if (
-        it.fontSize > maxNameSize &&
+    // Find candidate header items in top half of document
+    const topItems = rawItems.filter(
+      (it) =>
+        it.y > 550 &&
         !it.str.includes('@') &&
         !it.str.includes('+') &&
-        !it.str.toLowerCase().includes('university') &&
-        !it.str.toLowerCase().includes('college')
-      ) {
+        !/university|college|curriculum|resume|vitae|profile|overview|duration/i.test(it.str)
+    );
+
+    let maxNameSize = 0;
+    let bestY = 0;
+    for (const it of topItems) {
+      if (it.fontSize > maxNameSize && it.str.trim().length >= 2) {
         maxNameSize = it.fontSize;
-        name = cleanPdfArtifacts(it.str);
+        bestY = it.y;
+      }
+    }
+
+    if (maxNameSize >= 12 && bestY > 0) {
+      // Group all items on that same horizontal baseline (within 6px) having header font size
+      const nameParts = topItems
+        .filter((it) => Math.abs(it.y - bestY) <= 6 && it.fontSize >= maxNameSize - 2.5)
+        .sort((a, b) => a.x - b.x);
+
+      if (nameParts.length > 0) {
+        const fullCandidateName = nameParts.map((p) => p.str.trim()).join(' ');
+        name = cleanPdfArtifacts(fullCandidateName);
+      }
+    }
+  }
+  if (!name || name === 'YOUR NAME') {
+    // Fallback: search top lines for candidate name format
+    for (const line of lines.slice(0, 3)) {
+      const clean = cleanPdfArtifacts(line.text).replace(/[^a-zA-Z\s]/g, '').trim();
+      if (
+        clean.length >= 3 &&
+        clean.length <= 40 &&
+        !/summary|education|skills|experience|projects|certifications/i.test(clean)
+      ) {
+        name = clean;
+        break;
       }
     }
   }
@@ -84,22 +109,20 @@ export function parseResumeFromLayout(layout: LayoutExtractedDoc, hintedName?: s
     name = 'YOUR NAME';
   }
 
-  // 2. Extract Location
+  // 2. Extract Location (generalized city/state/country pattern)
   let location = '';
-  const topItems = rawItems.filter((it) => it.y > 700);
-  for (const it of topItems) {
-    if (it.str.includes('Mumbai') || it.str.includes('Maharashtra') || it.str.includes('India')) {
-      location = cleanPdfArtifacts(it.str);
+  const headerLines = lines.filter((l) => l.y > 600);
+  for (const line of headerLines) {
+    const t = cleanPdfArtifacts(line.text);
+    const locMatch = t.match(/\b([A-Z][a-zA-Z\s.-]+,\s*[A-Z][a-zA-Z\s.-]+(?:,\s*[A-Z][a-zA-Z\s.-]+)?)\b/);
+    if (
+      locMatch &&
+      !t.includes('@') &&
+      !t.includes('+') &&
+      !/university|college|engineering|bachelor|master|institute|department/i.test(t)
+    ) {
+      location = cleanPdfArtifacts(locMatch[1]);
       break;
-    }
-  }
-  if (!location) {
-    for (const it of topItems) {
-      const match = it.str.match(/([A-Za-z\s]+,\s*[A-Za-z\s]+,\s*[A-Za-z\s]+)/);
-      if (match && !it.str.toLowerCase().includes('university') && it.fontSize < 15) {
-        location = cleanPdfArtifacts(match[0]);
-        break;
-      }
     }
   }
 
@@ -268,15 +291,31 @@ export function parseResumeFromLayout(layout: LayoutExtractedDoc, hintedName?: s
       let currentProj: ProjectEntry | null = null;
 
       for (const line of sec.lines) {
-        if (line.text.includes('|') && line.fontSize >= 11.0) {
+        const hasPipe = line.text.includes('|');
+        const isHeaderCandidate =
+          hasPipe &&
+          (line.fontSize >= 10.0 ||
+            /React|Node|Express|SQL|Python|TensorFlow|Java|TypeScript|Developer|Founder|Lead|Platform|App|System/i.test(
+              line.text
+            ));
+
+        if (isHeaderCandidate) {
           if (currentProj) projects.push(currentProj);
           const parts = line.text.split('|').map((p) => cleanPdfArtifacts(p));
-          const projName = parts[0];
-          const tech = (parts[1] || '').split(',').map((t) => cleanPdfArtifacts(t)).filter(Boolean);
+          let projName = parts[0];
+          let tech: string[] = [];
+
+          if (parts.length >= 3) {
+            // e.g. "The Rkive | Founder & Developer | React.js, Node.js..."
+            projName = `${parts[0]} — ${parts[1]}`;
+            tech = parts[2].split(',').map((t) => cleanPdfArtifacts(t)).filter(Boolean);
+          } else if (parts.length === 2) {
+            tech = parts[1].split(',').map((t) => cleanPdfArtifacts(t)).filter(Boolean);
+          }
 
           const linkAnnot = annotations.find((a) => {
             const normUrl = a.url.toLowerCase();
-            const normName = projName.toLowerCase().replace(/\s+/g, '-');
+            const normName = parts[0].toLowerCase().replace(/\s+/g, '-');
             return normUrl.includes(normName) || Math.abs(a.rect[1] - line.y) < 25;
           });
 
@@ -295,8 +334,7 @@ export function parseResumeFromLayout(layout: LayoutExtractedDoc, hintedName?: s
               prevBullet &&
               (!prevBullet.endsWith('.') ||
                 /^[a-z]/.test(bulletText) ||
-                bulletText.length < 25 ||
-                bulletText === 'work.');
+                bulletText.length < 30);
 
             if (isContinuation) {
               currentProj.bullets[currentProj.bullets.length - 1] += ' ' + bulletText;
@@ -397,8 +435,14 @@ export function parseResumeSmart(rawText: string, hintedName?: string): ResumeDa
 
   for (let i = 0; i < Math.min(rawLines.length, 6); i++) {
     const line = rawLines[i];
-    if (line.includes('Mumbai') || line.includes('India') || line.includes('Maharashtra')) {
-      location = cleanPdfArtifacts(line);
+    const locMatch = line.match(/\b([A-Z][a-zA-Z\s.-]+,\s*[A-Z][a-zA-Z\s.-]+(?:,\s*[A-Z][a-zA-Z\s.-]+)?)\b/);
+    if (
+      locMatch &&
+      !line.includes('@') &&
+      !line.includes('+') &&
+      !/university|college|github|linkedin|http/i.test(line)
+    ) {
+      location = cleanPdfArtifacts(locMatch[1]);
       break;
     }
   }

@@ -1,5 +1,19 @@
 'use client';
 
+import { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  Plus,
+  Trash2,
+  Sparkles,
+  ExternalLink,
+  Loader2,
+  Check,
+  Globe,
+  Github,
+  MapPin,
+  Mail,
+  Phone,
+} from 'lucide-react';
 import type {
   ResumeData,
   TemplateId,
@@ -9,11 +23,20 @@ import type {
   BulletStyle,
   FontSizeScale,
   SkillCategory,
+  ProjectEntry,
+  PositionEntry,
+  EducationEntry,
+  CertificationEntry,
+  CustomSection,
+  CustomSectionItem,
 } from '@/lib/types';
 
 interface ResumeDocumentProps {
   resume: ResumeData;
   sectionOrder: string[];
+  onChange?: (updated: ResumeData) => void;
+  editable?: boolean;
+  onEnhanceBullet?: (bullet: string, updateFn: (enhanced: string) => void, context?: string) => void;
 }
 
 const ACCENT_COLOR_MAP: Record<AccentColor, { primary: string; secondary: string; lightBg: string; border: string }> = {
@@ -40,6 +63,99 @@ const BULLET_MAP: Record<BulletStyle, string> = {
   circle: '◦',
 };
 
+// Inline editable text component that blends seamlessly into the A4 document canvas
+function InlineEditable({
+  value,
+  onSave,
+  className = '',
+  style = {},
+  placeholder = 'Type here...',
+  multiline = false,
+  tag = 'span',
+  editable = true,
+}: {
+  value: string;
+  onSave: (val: string) => void;
+  className?: string;
+  style?: React.CSSProperties;
+  placeholder?: string;
+  multiline?: boolean;
+  tag?: 'span' | 'h1' | 'h2' | 'div' | 'p' | 'li';
+  editable?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(value);
+  const ref = useRef<any>(null);
+
+  useEffect(() => {
+    setText(value);
+  }, [value]);
+
+  if (!editable) {
+    const Tag = tag;
+    return (
+      <Tag className={className} style={style}>
+        {value || placeholder}
+      </Tag>
+    );
+  }
+
+  const handleBlur = () => {
+    setEditing(false);
+    if (text !== value) {
+      onSave(text.trim());
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!multiline && e.key === 'Enter') {
+      e.preventDefault();
+      handleBlur();
+    }
+  };
+
+  if (editing) {
+    if (multiline) {
+      return (
+        <textarea
+          ref={ref}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={handleBlur}
+          autoFocus
+          className={`w-full bg-primary/5 outline-none border border-primary/40 rounded p-1 text-slate-900 resize-y ${className}`}
+          style={{ ...style, minHeight: '40px' }}
+        />
+      );
+    }
+    return (
+      <input
+        ref={ref}
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        autoFocus
+        className={`bg-primary/5 outline-none border-b-2 border-primary rounded-none px-1 text-slate-900 ${className}`}
+        style={style}
+      />
+    );
+  }
+
+  const Tag = tag;
+  return (
+    <Tag
+      onClick={() => setEditing(true)}
+      title="Click to edit directly on canvas"
+      className={`cursor-pointer hover:bg-primary/10 hover:outline hover:outline-1 hover:outline-primary/40 rounded transition-colors ${className}`}
+      style={style}
+    >
+      {value || <span className="text-slate-400 italic">{placeholder}</span>}
+    </Tag>
+  );
+}
+
 // Auto-bold metrics and key action numbers if boldKeywords is active
 function formatBulletText(text: string, boldKeywords?: boolean) {
   if (!boldKeywords) return text;
@@ -56,7 +172,13 @@ function formatBulletText(text: string, boldKeywords?: boolean) {
   });
 }
 
-export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
+export function ResumeDocument({
+  resume,
+  sectionOrder,
+  onChange,
+  editable = true,
+  onEnhanceBullet,
+}: ResumeDocumentProps) {
   const c = resume.contact;
   const style = resume.style || {
     template: 'harvard-ats',
@@ -84,44 +206,62 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
   // Location
   const displayLocation = (c.location || '').trim();
 
-  // Density spacing calibrated for single-page A4
+  // Balanced density spacing calibrated to fill A4 page gracefully (~90-95% coverage)
   const densityStyles = {
     compact: {
-      fontSize: fontScale === 'sm' ? '7.8pt' : fontScale === 'lg' ? '9.0pt' : '8.4pt',
-      lineHeight: 1.22,
-      sectionMargin: '3px',
-      entryMargin: '1.5px',
-      titleSize: fontScale === 'sm' ? '10.0pt' : fontScale === 'lg' ? '11.5pt' : '10.8pt',
-      nameSize: fontScale === 'sm' ? '25pt' : fontScale === 'lg' ? '30pt' : '27pt',
+      fontSize: fontScale === 'sm' ? '8.4pt' : fontScale === 'lg' ? '9.6pt' : '9.0pt',
+      lineHeight: 1.28,
+      sectionMargin: '8px',
+      entryMargin: '3px',
+      titleSize: fontScale === 'sm' ? '10.2pt' : fontScale === 'lg' ? '11.5pt' : '10.8pt',
+      nameSize: fontScale === 'sm' ? '18pt' : fontScale === 'lg' ? '22pt' : '20pt',
     },
     standard: {
-      fontSize: fontScale === 'sm' ? '8.4pt' : fontScale === 'lg' ? '9.8pt' : '9.2pt',
-      lineHeight: 1.28,
-      sectionMargin: '4px',
-      entryMargin: '2px',
-      titleSize: fontScale === 'sm' ? '11.0pt' : fontScale === 'lg' ? '12.5pt' : '11.8pt',
-      nameSize: fontScale === 'sm' ? '28pt' : fontScale === 'lg' ? '34pt' : '31.5pt',
+      fontSize: fontScale === 'sm' ? '9.0pt' : fontScale === 'lg' ? '10.4pt' : '9.6pt',
+      lineHeight: 1.35,
+      sectionMargin: '11px',
+      entryMargin: '5px',
+      titleSize: fontScale === 'sm' ? '10.8pt' : fontScale === 'lg' ? '12.2pt' : '11.4pt',
+      nameSize: fontScale === 'sm' ? '20pt' : fontScale === 'lg' ? '24pt' : '22pt',
     },
     relaxed: {
-      fontSize: fontScale === 'sm' ? '9.0pt' : fontScale === 'lg' ? '10.5pt' : '9.8pt',
-      lineHeight: 1.34,
-      sectionMargin: '6px',
-      entryMargin: '3px',
-      titleSize: fontScale === 'sm' ? '11.8pt' : fontScale === 'lg' ? '13.2pt' : '12.5pt',
-      nameSize: fontScale === 'sm' ? '30pt' : fontScale === 'lg' ? '36pt' : '33.5pt',
+      fontSize: fontScale === 'sm' ? '9.5pt' : fontScale === 'lg' ? '11.0pt' : '10.2pt',
+      lineHeight: 1.42,
+      sectionMargin: '14px',
+      entryMargin: '7px',
+      titleSize: fontScale === 'sm' ? '11.4pt' : fontScale === 'lg' ? '13.0pt' : '12.0pt',
+      nameSize: fontScale === 'sm' ? '22pt' : fontScale === 'lg' ? '26pt' : '24pt',
     },
   }[density];
 
+  // Helper to push state updates safely
+  const updateResume = useCallback(
+    (updater: (prev: ResumeData) => ResumeData) => {
+      if (onChange) {
+        onChange(updater(resume));
+      }
+    },
+    [onChange, resume]
+  );
+
+  // Update contact field
+  const handleUpdateContact = (field: keyof typeof resume.contact, value: string) => {
+    updateResume((prev) => ({
+      ...prev,
+      contact: { ...prev.contact, [field]: value },
+    }));
+  };
+
   // Section Title with full-width thin rule
-  const renderSectionTitle = (title: string) => {
+  const renderSectionTitle = (title: string, sectionKey: string) => {
     if (template === 'modern-tech') {
       return (
         <div
-          className="resume-section-title-modern flex items-center gap-2"
+          className="resume-section-title-modern flex items-center gap-2 group relative"
           style={{
             borderLeft: `3.5px solid ${primaryColor}`,
             paddingLeft: '6px',
-            marginBottom: '2.5px',
+            marginBottom: '3px',
           }}
         >
           <span
@@ -140,11 +280,11 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
     if (template === 'executive-slate') {
       return (
         <div
-          className="resume-section-title-exec flex items-center justify-between"
+          className="resume-section-title-exec flex items-center justify-between group relative"
           style={{
             borderBottom: `1.5px solid ${primaryColor}`,
-            paddingBottom: '1.5px',
-            marginBottom: '2.5px',
+            paddingBottom: '2px',
+            marginBottom: '3px',
           }}
         >
           <span
@@ -161,14 +301,14 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
       );
     }
 
-    // Default / Harvard ATS / Classic ATS: Bold uppercase with thin rule underneath
+    // Default / Harvard ATS: Bold uppercase with thin rule underneath
     return (
       <div
-        className="resume-section-header"
+        className="resume-section-header group relative"
         style={{
           borderBottom: `1px solid ${primaryColor}`,
-          paddingBottom: '1px',
-          marginBottom: '2.5px',
+          paddingBottom: '2px',
+          marginBottom: '3.5px',
           marginTop: '0px',
         }}
       >
@@ -195,37 +335,134 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
 
       return (
         <section key={customSec.id} className="resume-section" style={{ marginTop: densityStyles.sectionMargin }}>
-          {renderSectionTitle(customSec.sectionTitle)}
+          {renderSectionTitle(customSec.sectionTitle, id)}
           {customSec.items.map((item, idx) => (
-            <div key={idx} className="resume-entry" style={{ marginBottom: densityStyles.entryMargin }}>
+            <div key={idx} className="resume-entry group relative" style={{ marginBottom: densityStyles.entryMargin }}>
               <div className="flex items-baseline justify-between">
-                <span className="font-bold text-slate-900" style={{ fontSize: densityStyles.fontSize }}>
-                  {item.title}
-                </span>
+                <InlineEditable
+                  value={item.title}
+                  onSave={(v) => {
+                    updateResume((prev) => {
+                      const custom = [...(prev.customSections || [])];
+                      const sIdx = custom.findIndex((cs) => cs.id === id);
+                      if (sIdx >= 0) {
+                        custom[sIdx].items[idx].title = v;
+                      }
+                      return { ...prev, customSections: custom };
+                    });
+                  }}
+                  className="font-bold text-slate-900"
+                  style={{ fontSize: densityStyles.fontSize }}
+                  editable={editable}
+                />
                 {item.date && (
-                  <span className="font-semibold text-slate-800 whitespace-nowrap" style={{ fontSize: densityStyles.fontSize }}>
-                    {item.date}
-                  </span>
+                  <InlineEditable
+                    value={item.date}
+                    onSave={(v) => {
+                      updateResume((prev) => {
+                        const custom = [...(prev.customSections || [])];
+                        const sIdx = custom.findIndex((cs) => cs.id === id);
+                        if (sIdx >= 0) {
+                          custom[sIdx].items[idx].date = v;
+                        }
+                        return { ...prev, customSections: custom };
+                      });
+                    }}
+                    className="font-semibold text-slate-800 whitespace-nowrap ml-2"
+                    style={{ fontSize: densityStyles.fontSize }}
+                    editable={editable}
+                  />
                 )}
               </div>
               {item.subtitle && (
                 <div className="text-slate-700 italic" style={{ fontSize: densityStyles.fontSize }}>
-                  {item.subtitle}
+                  <InlineEditable
+                    value={item.subtitle}
+                    onSave={(v) => {
+                      updateResume((prev) => {
+                        const custom = [...(prev.customSections || [])];
+                        const sIdx = custom.findIndex((cs) => cs.id === id);
+                        if (sIdx >= 0) {
+                          custom[sIdx].items[idx].subtitle = v;
+                        }
+                        return { ...prev, customSections: custom };
+                      });
+                    }}
+                    editable={editable}
+                  />
                 </div>
               )}
               {item.bullets && item.bullets.length > 0 && (
-                <ul className="resume-bullets list-disc pl-4 mt-0.5">
+                <ul className="resume-bullets list-disc pl-4 mt-1">
                   {item.bullets.map((b, bIdx) => (
                     <li
                       key={bIdx}
-                      className="text-slate-800 text-justify"
+                      className="text-slate-800 text-justify relative group/bullet"
                       style={{
                         fontSize: densityStyles.fontSize,
                         lineHeight: densityStyles.lineHeight,
-                        marginBottom: '1px',
+                        marginBottom: '1.5px',
                       }}
                     >
-                      {formatBulletText(b, boldKeywords)}
+                      <InlineEditable
+                        value={b}
+                        onSave={(newB) => {
+                          updateResume((prev) => {
+                            const custom = [...(prev.customSections || [])];
+                            const sIdx = custom.findIndex((cs) => cs.id === id);
+                            if (sIdx >= 0) {
+                              custom[sIdx].items[idx].bullets[bIdx] = newB;
+                            }
+                            return { ...prev, customSections: custom };
+                          });
+                        }}
+                        multiline
+                        editable={editable}
+                      />
+                      {editable && (
+                        <span className="no-print opacity-0 group-hover/bullet:opacity-100 inline-flex items-center gap-1 ml-2 transition-opacity">
+                          {onEnhanceBullet && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onEnhanceBullet(b, (enhanced) => {
+                                  updateResume((prev) => {
+                                    const custom = [...(prev.customSections || [])];
+                                    const sIdx = custom.findIndex((cs) => cs.id === id);
+                                    if (sIdx >= 0) {
+                                      custom[sIdx].items[idx].bullets[bIdx] = enhanced;
+                                    }
+                                    return { ...prev, customSections: custom };
+                                  });
+                                })
+                              }
+                              title="AI Enhance bullet"
+                              className="text-primary hover:text-primary/80"
+                            >
+                              <Sparkles className="h-3 w-3 inline" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateResume((prev) => {
+                                const custom = [...(prev.customSections || [])];
+                                const sIdx = custom.findIndex((cs) => cs.id === id);
+                                if (sIdx >= 0) {
+                                  custom[sIdx].items[idx].bullets = custom[sIdx].items[idx].bullets.filter(
+                                    (_, i) => i !== bIdx
+                                  );
+                                }
+                                return { ...prev, customSections: custom };
+                              });
+                            }}
+                            title="Delete bullet"
+                            className="text-rose-500 hover:text-rose-700"
+                          >
+                            <Trash2 className="h-3 w-3 inline" />
+                          </button>
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -241,18 +478,21 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
         if (!resume.summary) return null;
         return (
           <section key="summary" className="resume-section" style={{ marginTop: densityStyles.sectionMargin }}>
-            {renderSectionTitle('Summary')}
-            <p
-              className="resume-summary text-justify"
+            {renderSectionTitle('Summary', 'summary')}
+            <div
+              className="resume-summary text-justify mt-1 text-slate-800"
               style={{
                 fontSize: densityStyles.fontSize,
                 lineHeight: densityStyles.lineHeight,
-                color: '#1e293b',
-                marginTop: '1.5px',
               }}
             >
-              {resume.summary}
-            </p>
+              <InlineEditable
+                value={resume.summary}
+                onSave={(v) => updateResume((prev) => ({ ...prev, summary: v }))}
+                multiline
+                editable={editable}
+              />
+            </div>
           </section>
         );
 
@@ -260,29 +500,95 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
         if (!resume.education || resume.education.length === 0) return null;
         return (
           <section key="education" className="resume-section" style={{ marginTop: densityStyles.sectionMargin }}>
-            {renderSectionTitle('Education')}
+            {renderSectionTitle('Education', 'education')}
             {resume.education.map((e, i) => (
-              <div key={i} className="resume-education-entry" style={{ marginBottom: densityStyles.entryMargin }}>
+              <div key={i} className="resume-education-entry group relative" style={{ marginBottom: densityStyles.entryMargin }}>
                 <div className="flex items-baseline justify-between">
-                  <span className="font-bold text-slate-900" style={{ fontSize: densityStyles.fontSize }}>
-                    {e.degree}
-                  </span>
-                  <span className="font-semibold text-slate-800 whitespace-nowrap ml-2" style={{ fontSize: densityStyles.fontSize }}>
-                    {e.dates}
-                  </span>
+                  <InlineEditable
+                    value={e.degree}
+                    onSave={(v) => {
+                      updateResume((prev) => {
+                        const edu = [...prev.education];
+                        edu[i].degree = v;
+                        return { ...prev, education: edu };
+                      });
+                    }}
+                    className="font-bold text-slate-900"
+                    style={{ fontSize: densityStyles.fontSize }}
+                    editable={editable}
+                  />
+                  <InlineEditable
+                    value={e.dates}
+                    onSave={(v) => {
+                      updateResume((prev) => {
+                        const edu = [...prev.education];
+                        edu[i].dates = v;
+                        return { ...prev, education: edu };
+                      });
+                    }}
+                    className="font-semibold text-slate-800 whitespace-nowrap ml-2"
+                    style={{ fontSize: densityStyles.fontSize }}
+                    editable={editable}
+                  />
                 </div>
-                <div className="flex items-baseline justify-between text-slate-700" style={{ fontSize: densityStyles.fontSize }}>
-                  <span className="italic">{e.institution}</span>
-                  {e.location && <span className="italic text-slate-600">{e.location}</span>}
+                <div className="flex items-baseline justify-between text-slate-700 mt-0.5" style={{ fontSize: densityStyles.fontSize }}>
+                  <InlineEditable
+                    value={e.institution}
+                    onSave={(v) => {
+                      updateResume((prev) => {
+                        const edu = [...prev.education];
+                        edu[i].institution = v;
+                        return { ...prev, education: edu };
+                      });
+                    }}
+                    className="italic"
+                    editable={editable}
+                  />
+                  {e.location && (
+                    <InlineEditable
+                      value={e.location}
+                      onSave={(v) => {
+                        updateResume((prev) => {
+                          const edu = [...prev.education];
+                          edu[i].location = v;
+                          return { ...prev, education: edu };
+                        });
+                      }}
+                      className="italic text-slate-600"
+                      editable={editable}
+                    />
+                  )}
                 </div>
                 {e.gpa && (
-                  <div className="text-slate-700" style={{ fontSize: '7.5pt' }}>
-                    <strong>GPA:</strong> {e.gpa}
+                  <div className="text-slate-700 mt-0.5" style={{ fontSize: '8.2pt' }}>
+                    <strong>GPA: </strong>
+                    <InlineEditable
+                      value={e.gpa}
+                      onSave={(v) => {
+                        updateResume((prev) => {
+                          const edu = [...prev.education];
+                          edu[i].gpa = v;
+                          return { ...prev, education: edu };
+                        });
+                      }}
+                      editable={editable}
+                    />
                   </div>
                 )}
                 {e.coursework && (
-                  <div className="text-slate-600 italic" style={{ fontSize: '7.5pt' }}>
-                    <strong>Relevant Coursework:</strong> {e.coursework}
+                  <div className="text-slate-600 italic mt-0.5" style={{ fontSize: '8.2pt' }}>
+                    <strong>Relevant Coursework: </strong>
+                    <InlineEditable
+                      value={e.coursework}
+                      onSave={(v) => {
+                        updateResume((prev) => {
+                          const edu = [...prev.education];
+                          edu[i].coursework = v;
+                          return { ...prev, education: edu };
+                        });
+                      }}
+                      editable={editable}
+                    />
                   </div>
                 )}
               </div>
@@ -293,7 +599,6 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
       case 'skills': {
         if (!resume.skills || resume.skills.length === 0) return null;
 
-        // Two-Column Technical Skills Layout
         const hasExplicitColumns = resume.skills.some((s) => s.column === 2);
         let col1Skills: SkillCategory[] = [];
         let col2Skills: SkillCategory[] = [];
@@ -313,11 +618,11 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
 
         return (
           <section key="skills" className="resume-section" style={{ marginTop: densityStyles.sectionMargin }}>
-            {renderSectionTitle('Technical Skills')}
+            {renderSectionTitle('Technical Skills', 'skills')}
             {isTwoColumn ? (
               <div className="grid grid-cols-2 gap-x-6 mt-1">
                 {/* Left Column */}
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {col1Skills.map((s, idx) => (
                     <div
                       key={idx}
@@ -330,14 +635,28 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
                       <span className="text-slate-800 mr-1.5 font-bold shrink-0">{bulletChar}</span>
                       <div>
                         <span className="font-bold text-slate-900 mr-1">{s.category}:</span>
-                        <span className="text-slate-800 font-normal">{s.skills.join(', ')}</span>
+                        <InlineEditable
+                          value={s.skills.join(', ')}
+                          onSave={(v) => {
+                            updateResume((prev) => {
+                              const skills = [...prev.skills];
+                              const actualIdx = skills.findIndex((item) => item.category === s.category);
+                              if (actualIdx >= 0) {
+                                skills[actualIdx].skills = v.split(',').map((x) => x.trim()).filter(Boolean);
+                              }
+                              return { ...prev, skills };
+                            });
+                          }}
+                          className="text-slate-800 font-normal"
+                          editable={editable}
+                        />
                       </div>
                     </div>
                   ))}
                 </div>
 
                 {/* Right Column */}
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {col2Skills.map((s, idx) => (
                     <div
                       key={idx}
@@ -350,14 +669,28 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
                       <span className="text-slate-800 mr-1.5 font-bold shrink-0">{bulletChar}</span>
                       <div>
                         <span className="font-bold text-slate-900 mr-1">{s.category}:</span>
-                        <span className="text-slate-800 font-normal">{s.skills.join(', ')}</span>
+                        <InlineEditable
+                          value={s.skills.join(', ')}
+                          onSave={(v) => {
+                            updateResume((prev) => {
+                              const skills = [...prev.skills];
+                              const actualIdx = skills.findIndex((item) => item.category === s.category);
+                              if (actualIdx >= 0) {
+                                skills[actualIdx].skills = v.split(',').map((x) => x.trim()).filter(Boolean);
+                              }
+                              return { ...prev, skills };
+                            });
+                          }}
+                          className="text-slate-800 font-normal"
+                          editable={editable}
+                        />
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="space-y-0.5 mt-1">
+              <div className="space-y-1 mt-1">
                 {col1Skills.map((s, idx) => (
                   <div
                     key={idx}
@@ -370,7 +703,18 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
                     <span className="text-slate-800 mr-1.5 font-bold shrink-0">{bulletChar}</span>
                     <div>
                       <span className="font-bold text-slate-900 mr-1">{s.category}:</span>
-                      <span className="text-slate-800 font-normal">{s.skills.join(', ')}</span>
+                      <InlineEditable
+                        value={s.skills.join(', ')}
+                        onSave={(v) => {
+                          updateResume((prev) => {
+                            const skills = [...prev.skills];
+                            skills[idx].skills = v.split(',').map((x) => x.trim()).filter(Boolean);
+                            return { ...prev, skills };
+                          });
+                        }}
+                        className="text-slate-800 font-normal"
+                        editable={editable}
+                      />
                     </div>
                   </div>
                 ))}
@@ -384,37 +728,114 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
         if (!resume.positions || resume.positions.length === 0) return null;
         return (
           <section key="positions" className="resume-section" style={{ marginTop: densityStyles.sectionMargin }}>
-            {renderSectionTitle('Positions of Responsibility')}
+            {renderSectionTitle('Positions of Responsibility', 'positions')}
             {resume.positions.map((pos, pIdx) => (
-              <div key={pIdx} className="resume-entry" style={{ marginBottom: densityStyles.entryMargin }}>
+              <div key={pIdx} className="resume-entry group relative" style={{ marginBottom: densityStyles.entryMargin }}>
                 <div className="flex items-baseline justify-between">
-                  <span className="font-bold text-slate-900" style={{ fontSize: densityStyles.fontSize }}>
-                    {pos.title}
-                  </span>
+                  <InlineEditable
+                    value={pos.title}
+                    onSave={(v) => {
+                      updateResume((prev) => {
+                        const positions = [...prev.positions];
+                        positions[pIdx].title = v;
+                        return { ...prev, positions };
+                      });
+                    }}
+                    className="font-bold text-slate-900"
+                    style={{ fontSize: densityStyles.fontSize }}
+                    editable={editable}
+                  />
                   {pos.dates && (
-                    <span className="font-semibold text-slate-800 whitespace-nowrap ml-2" style={{ fontSize: densityStyles.fontSize }}>
-                      {pos.dates}
-                    </span>
+                    <InlineEditable
+                      value={pos.dates}
+                      onSave={(v) => {
+                        updateResume((prev) => {
+                          const positions = [...prev.positions];
+                          positions[pIdx].dates = v;
+                          return { ...prev, positions };
+                        });
+                      }}
+                      className="font-semibold text-slate-800 whitespace-nowrap ml-2"
+                      style={{ fontSize: densityStyles.fontSize }}
+                      editable={editable}
+                    />
                   )}
                 </div>
                 {pos.organization && (
-                  <div className="flex items-baseline justify-between text-slate-700 italic" style={{ fontSize: densityStyles.fontSize }}>
-                    <span>{pos.organization}</span>
+                  <div className="flex items-baseline justify-between text-slate-700 italic mt-0.5" style={{ fontSize: densityStyles.fontSize }}>
+                    <InlineEditable
+                      value={pos.organization}
+                      onSave={(v) => {
+                        updateResume((prev) => {
+                          const positions = [...prev.positions];
+                          positions[pIdx].organization = v;
+                          return { ...prev, positions };
+                        });
+                      }}
+                      editable={editable}
+                    />
                     {pos.location && <span className="text-slate-600">{pos.location}</span>}
                   </div>
                 )}
-                <ul className="resume-bullets list-disc pl-4 mt-0.5">
+                <ul className="resume-bullets list-disc pl-4 mt-1">
                   {pos.bullets.map((b, bIdx) => (
                     <li
                       key={bIdx}
-                      className="text-slate-800 text-justify"
+                      className="text-slate-800 text-justify relative group/bullet"
                       style={{
                         fontSize: densityStyles.fontSize,
                         lineHeight: densityStyles.lineHeight,
-                        marginBottom: '1px',
+                        marginBottom: '1.5px',
                       }}
                     >
-                      {formatBulletText(b, boldKeywords)}
+                      <InlineEditable
+                        value={b}
+                        onSave={(newB) => {
+                          updateResume((prev) => {
+                            const positions = [...prev.positions];
+                            positions[pIdx].bullets[bIdx] = newB;
+                            return { ...prev, positions };
+                          });
+                        }}
+                        multiline
+                        editable={editable}
+                      />
+                      {editable && (
+                        <span className="no-print opacity-0 group-hover/bullet:opacity-100 inline-flex items-center gap-1.5 ml-2 transition-opacity">
+                          {onEnhanceBullet && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onEnhanceBullet(b, (enhanced) => {
+                                  updateResume((prev) => {
+                                    const positions = [...prev.positions];
+                                    positions[pIdx].bullets[bIdx] = enhanced;
+                                    return { ...prev, positions };
+                                  });
+                                }, pos.title)
+                              }
+                              title="AI Enhance bullet (STAR)"
+                              className="text-primary hover:text-primary/80"
+                            >
+                              <Sparkles className="h-3 w-3 inline" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateResume((prev) => {
+                                const positions = [...prev.positions];
+                                positions[pIdx].bullets = positions[pIdx].bullets.filter((_, i) => i !== bIdx);
+                                return { ...prev, positions };
+                              });
+                            }}
+                            title="Delete bullet"
+                            className="text-rose-500 hover:text-rose-700"
+                          >
+                            <Trash2 className="h-3 w-3 inline" />
+                          </button>
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -430,88 +851,151 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
 
         return (
           <section key="projects" className="resume-section" style={{ marginTop: densityStyles.sectionMargin }}>
-            {renderSectionTitle('Projects')}
-            {visibleProjects.map((p, pIdx) => (
-              <div key={pIdx} className="resume-entry" style={{ marginBottom: densityStyles.entryMargin }}>
-                <div className="flex items-baseline justify-between flex-wrap gap-y-0.5">
-                  {/* Project Name & Tech Stack */}
-                  <div className="flex items-baseline flex-wrap gap-1">
-                    {p.link ? (
-                      <a
-                        href={p.link.startsWith('http') ? p.link : `https://${p.link}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-bold text-slate-900 underline decoration-slate-400 hover:text-primary transition-colors"
-                        style={{ fontSize: densityStyles.fontSize }}
-                      >
-                        {p.name}
-                      </a>
-                    ) : (
-                      <span
+            {renderSectionTitle('Projects', 'projects')}
+            {visibleProjects.map((p, pIdx) => {
+              const actualIdx = resume.projects.findIndex((proj) => proj.name === p.name);
+              return (
+                <div key={pIdx} className="resume-entry group relative" style={{ marginBottom: densityStyles.entryMargin }}>
+                  <div className="flex items-baseline justify-between flex-wrap gap-y-0.5">
+                    {/* Project Name & Tech Stack */}
+                    <div className="flex items-baseline flex-wrap gap-1">
+                      <InlineEditable
+                        value={p.name}
+                        onSave={(v) => {
+                          updateResume((prev) => {
+                            const projects = [...prev.projects];
+                            if (actualIdx >= 0) projects[actualIdx].name = v;
+                            return { ...prev, projects };
+                          });
+                        }}
                         className="font-bold text-slate-900 underline decoration-slate-400"
                         style={{ fontSize: densityStyles.fontSize }}
-                      >
-                        {p.name}
-                      </span>
-                    )}
+                        editable={editable}
+                      />
 
-                    {p.tech && p.tech.length > 0 && (
-                      <>
-                        <span className="text-slate-400 font-normal px-0.5">|</span>
-                        <span className="font-normal text-slate-700" style={{ fontSize: densityStyles.fontSize }}>
-                          {p.tech.join(', ')}
+                      {p.tech && p.tech.length > 0 && (
+                        <>
+                          <span className="text-slate-400 font-normal px-0.5">|</span>
+                          <InlineEditable
+                            value={p.tech.join(', ')}
+                            onSave={(v) => {
+                              updateResume((prev) => {
+                                const projects = [...prev.projects];
+                                if (actualIdx >= 0) {
+                                  projects[actualIdx].tech = v.split(',').map((x) => x.trim()).filter(Boolean);
+                                }
+                                return { ...prev, projects };
+                              });
+                            }}
+                            className="font-normal text-slate-700"
+                            style={{ fontSize: densityStyles.fontSize }}
+                            editable={editable}
+                          />
+                        </>
+                      )}
+                    </div>
+
+                    {/* Links & Date */}
+                    <div className="flex items-center gap-2">
+                      {p.link && (
+                        <a
+                          href={p.link.startsWith('http') ? p.link : `https://${p.link}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-0.5 text-slate-700 hover:text-primary underline text-[7.5pt]"
+                        >
+                          <span>Demo ↗</span>
+                        </a>
+                      )}
+                      {p.github && (
+                        <a
+                          href={p.github.startsWith('http') ? p.github : `https://${p.github}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-0.5 text-slate-700 hover:text-primary underline text-[7.5pt]"
+                        >
+                          <span>Code ↗</span>
+                        </a>
+                      )}
+                      {p.date && (
+                        <span className="text-[7.5pt] text-slate-500 font-medium">
+                          {p.date}
                         </span>
-                      </>
-                    )}
+                      )}
+                    </div>
                   </div>
 
-                  {/* Links & Date */}
-                  <div className="flex items-center gap-2">
-                    {p.link && (
-                      <a
-                        href={p.link.startsWith('http') ? p.link : `https://${p.link}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-slate-700 hover:text-primary underline text-[7.5pt]"
+                  <ul className="resume-bullets list-disc pl-4 mt-1">
+                    {p.bullets.map((b, bIdx) => (
+                      <li
+                        key={bIdx}
+                        className="text-slate-800 text-justify relative group/bullet"
+                        style={{
+                          fontSize: densityStyles.fontSize,
+                          lineHeight: densityStyles.lineHeight,
+                          marginBottom: '1.5px',
+                        }}
                       >
-                        <span>Demo ↗</span>
-                      </a>
-                    )}
-                    {p.github && (
-                      <a
-                        href={p.github.startsWith('http') ? p.github : `https://${p.github}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-slate-700 hover:text-primary underline text-[7.5pt]"
-                      >
-                        <span>Code ↗</span>
-                      </a>
-                    )}
-                    {p.date && (
-                      <span className="text-[7.5pt] text-slate-500 font-medium">
-                        {p.date}
-                      </span>
-                    )}
-                  </div>
+                        <InlineEditable
+                          value={b}
+                          onSave={(newB) => {
+                            updateResume((prev) => {
+                              const projects = [...prev.projects];
+                              if (actualIdx >= 0) {
+                                projects[actualIdx].bullets[bIdx] = newB;
+                              }
+                              return { ...prev, projects };
+                            });
+                          }}
+                          multiline
+                          editable={editable}
+                        />
+                        {editable && (
+                          <span className="no-print opacity-0 group-hover/bullet:opacity-100 inline-flex items-center gap-1.5 ml-2 transition-opacity">
+                            {onEnhanceBullet && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onEnhanceBullet(b, (enhanced) => {
+                                    updateResume((prev) => {
+                                      const projects = [...prev.projects];
+                                      if (actualIdx >= 0) {
+                                        projects[actualIdx].bullets[bIdx] = enhanced;
+                                      }
+                                      return { ...prev, projects };
+                                    });
+                                  }, p.name)
+                                }
+                                title="AI Enhance bullet (STAR)"
+                                className="text-primary hover:text-primary/80"
+                              >
+                                <Sparkles className="h-3 w-3 inline" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateResume((prev) => {
+                                  const projects = [...prev.projects];
+                                  if (actualIdx >= 0) {
+                                    projects[actualIdx].bullets = projects[actualIdx].bullets.filter((_, i) => i !== bIdx);
+                                  }
+                                  return { ...prev, projects };
+                                });
+                              }}
+                              title="Delete bullet"
+                              className="text-rose-500 hover:text-rose-700"
+                            >
+                              <Trash2 className="h-3 w-3 inline" />
+                            </button>
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-
-                <ul className="resume-bullets list-disc pl-4 mt-0.5">
-                  {p.bullets.map((b, bIdx) => (
-                    <li
-                      key={bIdx}
-                      className="text-slate-800 text-justify"
-                      style={{
-                        fontSize: densityStyles.fontSize,
-                        lineHeight: densityStyles.lineHeight,
-                        marginBottom: '1px',
-                      }}
-                    >
-                      {formatBulletText(b, boldKeywords)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+              );
+            })}
           </section>
         );
       }
@@ -520,8 +1004,8 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
         if (!resume.certifications || resume.certifications.length === 0) return null;
         return (
           <section key="certifications" className="resume-section" style={{ marginTop: densityStyles.sectionMargin }}>
-            {renderSectionTitle('Certifications')}
-            <ul className="resume-bullets list-disc pl-4 space-y-0.5 mt-0.5">
+            {renderSectionTitle('Certifications', 'certifications')}
+            <ul className="resume-bullets list-disc pl-4 space-y-0.5 mt-1">
               {resume.certifications.map((cert, cIdx) => (
                 <li
                   key={cIdx}
@@ -531,22 +1015,49 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
                     lineHeight: densityStyles.lineHeight,
                   }}
                 >
-                  <span className="font-bold text-slate-900">{cert.title}</span>
+                  <InlineEditable
+                    value={cert.title}
+                    onSave={(v) => {
+                      updateResume((prev) => {
+                        const certifications = [...prev.certifications];
+                        certifications[cIdx].title = v;
+                        return { ...prev, certifications };
+                      });
+                    }}
+                    className="font-bold text-slate-900"
+                    editable={editable}
+                  />
                   {cert.issuer && (
-                    <span className="text-slate-700"> — {cert.issuer}</span>
+                    <span className="text-slate-700">
+                      {' '}—{' '}
+                      <InlineEditable
+                        value={cert.issuer}
+                        onSave={(v) => {
+                          updateResume((prev) => {
+                            const certifications = [...prev.certifications];
+                            certifications[cIdx].issuer = v;
+                            return { ...prev, certifications };
+                          });
+                        }}
+                        editable={editable}
+                      />
+                    </span>
                   )}
                   {cert.year && (
-                    <span className="text-slate-600 font-medium"> | {cert.year}</span>
-                  )}
-                  {cert.link && (
-                    <a
-                      href={cert.link.startsWith('http') ? cert.link : `https://${cert.link}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ml-1.5 text-[7.5pt] text-primary hover:underline"
-                    >
-                      Verify ↗
-                    </a>
+                    <span className="text-slate-600 font-medium">
+                      {' '}|{' '}
+                      <InlineEditable
+                        value={cert.year}
+                        onSave={(v) => {
+                          updateResume((prev) => {
+                            const certifications = [...prev.certifications];
+                            certifications[cIdx].year = v;
+                            return { ...prev, certifications };
+                          });
+                        }}
+                        editable={editable}
+                      />
+                    </span>
                   )}
                 </li>
               ))}
@@ -561,25 +1072,30 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
 
   return (
     <div
-      className={`resume-sheet template-${template} relative bg-white shadow-xl`}
+      className={`resume-sheet template-${template} relative bg-white shadow-2xl transition-all duration-200`}
       style={{
         fontFamily,
         color: '#0f172a',
-        width: '794px',
-        minHeight: '1123px',
+        width: '210mm',
+        minHeight: '297mm',
         boxSizing: 'border-box',
-        padding: '28px 36px',
+        padding: '12mm 15mm',
       }}
     >
       {/* Candidate Header */}
       <div className={`resume-header template-${template}-header relative pb-1`}>
-        {/* Location small on top right */}
+        {/* Location badge on top right */}
         {displayLocation && (
           <div
             className="resume-location-badge absolute right-0 top-0 text-slate-700 font-normal"
-            style={{ fontSize: '8.0pt' }}
+            style={{ fontSize: '8.4pt' }}
           >
-            {displayLocation}
+            <InlineEditable
+              value={displayLocation}
+              onSave={(v) => handleUpdateContact('location', v)}
+              placeholder="City, Country"
+              editable={editable}
+            />
           </div>
         )}
 
@@ -593,7 +1109,13 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
             color: primaryColor,
           }}
         >
-          {displayName}
+          <InlineEditable
+            value={displayName}
+            onSave={(v) => handleUpdateContact('name', v)}
+            placeholder="YOUR NAME"
+            tag="h1"
+            editable={editable}
+          />
         </h1>
 
         {/* Optional Headline */}
@@ -602,9 +1124,14 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
             className={`resume-headline text-slate-700 font-semibold tracking-wide uppercase ${
               template === 'modern-tech' || template === 'executive-slate' ? 'text-left' : 'text-center'
             } mt-0.5`}
-            style={{ fontSize: '8.5pt', color: baseColor.secondary }}
+            style={{ fontSize: '8.8pt', color: baseColor.secondary }}
           >
-            {c.headline}
+            <InlineEditable
+              value={c.headline}
+              onSave={(v) => handleUpdateContact('headline', v)}
+              placeholder="Professional Headline"
+              editable={editable}
+            />
           </div>
         )}
 
@@ -613,12 +1140,16 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
           className={`resume-contact-bar flex items-center ${
             template === 'modern-tech' || template === 'executive-slate' ? 'justify-start' : 'justify-center'
           } flex-wrap gap-x-2.5 gap-y-1 mt-1.5 text-slate-800`}
-          style={{ fontSize: '8.4pt' }}
+          style={{ fontSize: '8.6pt' }}
         >
           {c.phone && (
-            <span className="resume-contact-item font-medium">
-              {c.phone}
-            </span>
+            <InlineEditable
+              value={c.phone}
+              onSave={(v) => handleUpdateContact('phone', v)}
+              placeholder="+1 555-0000"
+              className="resume-contact-item font-medium"
+              editable={editable}
+            />
           )}
 
           {c.phone && c.email && (
@@ -626,12 +1157,13 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
           )}
 
           {c.email && (
-            <a
-              href={`mailto:${c.email}`}
-              className="resume-contact-link font-medium text-slate-900 hover:underline"
-            >
-              {c.email}
-            </a>
+            <InlineEditable
+              value={c.email}
+              onSave={(v) => handleUpdateContact('email', v)}
+              placeholder="email@domain.com"
+              className="resume-contact-link font-medium text-slate-900"
+              editable={editable}
+            />
           )}
 
           {c.linkedin && (
@@ -682,20 +1214,6 @@ export function ResumeDocument({ resume, sectionOrder }: ResumeDocumentProps) {
                 className="resume-social-link font-medium text-slate-900 hover:underline"
               >
                 <span>Portfolio</span>
-              </a>
-            </>
-          )}
-
-          {c.website && (
-            <>
-              <span className="resume-contact-pipe text-slate-400 font-light">|</span>
-              <a
-                href={c.website.startsWith('http') ? c.website : `https://${c.website}`}
-                target="_blank"
-                rel="noreferrer"
-                className="resume-social-link font-medium text-slate-900 hover:underline"
-              >
-                <span>Website</span>
               </a>
             </>
           )}

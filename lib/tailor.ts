@@ -29,7 +29,7 @@ const ACTION_VERB_MAP: Record<string, string[]> = {
 };
 
 // Dynamic Bullet Enhancer (Universal rule-based NLP)
-export function enhanceBulletLocally(bullet: string, targetRole: string, keywords: string[]): string {
+export function enhanceBulletLocally(bullet: string, targetRole: string, keywords: string[] = []): string {
   let enhanced = bullet.trim();
   if (!enhanced) return enhanced;
 
